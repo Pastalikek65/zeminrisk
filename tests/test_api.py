@@ -36,6 +36,27 @@ def test_simulate_shakemap_endpoint() -> None:
     assert data["metadata"]["max_pga_g"] > 0.5
 
 
+def test_compute_response_spectrum_endpoint() -> None:
+    payload = {
+        "magnitude": 7.8,
+        "depth_km": 8.6,
+        "lat": 36.202,
+        "lon": 36.160,
+        "vs30": 360.0,
+        "s_ds": 1.5,
+        "s_d1": 0.45,
+    }
+    res = client.post("/api/v1/shakemap/response-spectrum", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert "periods" in data
+    assert "sa_g" in data
+    assert "tbdy_design_sa_g" in data
+    assert len(data["sa_g"]) == len(data["periods"])
+    assert max(data["sa_g"]) > 1.0
+
+
 def test_simulate_insar_dpm_endpoint() -> None:
     payload = {
         "min_lon": 36.12,

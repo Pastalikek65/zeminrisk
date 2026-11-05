@@ -121,6 +121,16 @@ $$\epsilon_i = \ln(PGA_{\text{obs}, i}) - \ln(PGA_{\text{GMPE}, i})$$
 $$PGA_{\text{conditioned}}(\mathbf{x}) = PGA_{\text{GMPE}}(\mathbf{x}) \cdot \exp\left(\sum_{i=1}^{N_{\text{stat}}} w_i(\mathbf{x}) \epsilon_i\right)$$
 where spatial weights $\mathbf{w}(\mathbf{x}) = \mathbf{C}_{\text{stat,stat}}^{-1} \mathbf{c}_{\text{grid,stat}}(\mathbf{x})$ are derived from an exponential spatial covariance kernel $C(h) = \sigma^2 \exp(-3h/d)$, providing calibrated spatial uncertainty $\sigma_k^2(\mathbf{x})$ across unmonitored zones.
 
+### 6. Response Spectrum Engine & TBDY-2018 Design Spectrum
+To evaluate structural resonance and building demand, `zemin-core` computes full Response Spectral Acceleration $Sa(T)$ across periods $T \in [0.01\text{ s}, 4.0\text{ s}]$ and compares it directly against the Turkish Building Earthquake Code (TBDY-2018 §2.3.4.1) Elastic Design Spectrum:
+$$S_{ae}(T) = \begin{cases}
+\left(0.4 + 0.6 \frac{T}{T_A}\right) S_{DS} & 0 \le T < T_A \\
+S_{DS} & T_A \le T \le T_B \\
+\frac{S_{D1}}{T} & T_B < T \le T_L \\
+\frac{S_{D1} T_L}{T^2} & T > T_L
+\end{cases}$$
+where corner periods $T_A = 0.2 S_{D1} / S_{DS}$ and $T_B = S_{D1} / S_{DS}$ define the constant spectral acceleration plateau.
+
 ---
 
 ## 📊 Benchmarks

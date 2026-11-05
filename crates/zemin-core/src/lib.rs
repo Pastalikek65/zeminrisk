@@ -6,8 +6,9 @@ pub mod raster;
 pub mod spatial;
 
 pub use gmpe::{
-    calculate_ground_motion, EarthquakeSource, FaultMechanism, GmpeModel, GroundMotionIntensity,
-    SiteCondition,
+    calculate_ground_motion, calculate_response_spectrum, tbdy_2018_design_spectrum,
+    EarthquakeSource, FaultMechanism, GmpeModel, GroundMotionIntensity, ResponseSpectrum,
+    SiteCondition, STANDARD_PERIODS,
 };
 pub use raster::{ShakeMapRaster, ShakeMapStats};
 pub use spatial::{BoundingBox, FaultRupture, GeoCoord, EARTH_RADIUS_KM};
@@ -80,10 +81,29 @@ mod pyo3_bindings {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }
 
+    #[pyfunction]
+    #[pyo3(signature = (mag, depth_km, r_jb_km, vs30=360.0, s_ds=1.5, s_d1=0.45))]
+    fn calc_response_spectrum(
+        mag: f64,
+        depth_km: f64,
+        r_jb_km: f64,
+        vs30: f64,
+        s_ds: f64,
+        s_d1: f64,
+    ) -> PyResult<String> {
+        let src = EarthquakeSource::new(mag, depth_km, FaultMechanism::StrikeSlip);
+        let site = SiteCondition::new(vs30);
+        let spec = calculate_response_spectrum(&src, &site, r_jb_km, s_ds, s_d1);
+
+        serde_json::to_string(&spec)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+    }
+
     #[pymodule]
     fn zemin_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(calc_gmpe, m)?)?;
         m.add_function(wrap_pyfunction!(compute_shakemap_geojson, m)?)?;
+        m.add_function(wrap_pyfunction!(calc_response_spectrum, m)?)?;
         Ok(())
     }
 }

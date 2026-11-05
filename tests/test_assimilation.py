@@ -78,3 +78,4 @@ def test_stations_to_geojson() -> None:
     assert "properties" in first
     assert "pga_recorded_g" in first["properties"]
     assert "vs30_ms" in first["properties"]
+

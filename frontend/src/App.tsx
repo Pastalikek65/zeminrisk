@@ -5,6 +5,7 @@ import { MetricsPanel } from './components/MetricsPanel';
 import { LayerControls } from './components/LayerControls';
 import { ScenarioSelector } from './components/ScenarioSelector';
 import { CustomSimulationModal } from './components/CustomSimulationModal';
+import { ResponseSpectrumModal } from './components/ResponseSpectrumModal';
 import { Legend } from './components/Legend';
 import {
   PRESET_SCENARIOS,
@@ -17,7 +18,7 @@ import {
   LayerVisibility,
   CustomSimulationParams,
 } from './types';
-import { Eye, Compass, Building, Activity, RotateCcw, Download } from 'lucide-react';
+import { Eye, Compass, Building, Activity, RotateCcw, Download, TrendingUp } from 'lucide-react';
 import './App.css';
 
 // Sleek dark Carto basemap style
@@ -59,6 +60,16 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [metrics, setMetrics] = useState<HazardMetrics | null>(null);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState<boolean>(false);
+  const [isSpectrumModalOpen, setIsSpectrumModalOpen] = useState<boolean>(false);
+  const [spectrumData, setSpectrumData] = useState<{
+    title: string;
+    pga: number;
+    highlightPeriod?: number;
+  }>({
+    title: 'Antakya Central Basin',
+    pga: 1.05,
+    highlightPeriod: 0.5,
+  });
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({
     lat: 36.202,
     lng: 36.160,
@@ -761,6 +772,21 @@ export const App: React.FC = () => {
         </button>
         <button
           className="cam-btn"
+          onClick={() => {
+            setSpectrumData({
+              title: 'Antakya Central Basin',
+              pga: metrics?.maxPga ?? 1.05,
+              highlightPeriod: 0.5,
+            });
+            setIsSpectrumModalOpen(true);
+          }}
+          title="Inspect Response Spectrum Sa(T) vs TBDY-2018"
+        >
+          <TrendingUp size={14} className="text-rose-400" />
+          <span>Response Spectrum</span>
+        </button>
+        <button
+          className="cam-btn"
           onClick={handleExportGeoJSON}
           title="Download calibrated ShakeMap GeoJSON"
         >
@@ -776,7 +802,16 @@ export const App: React.FC = () => {
         onRunSimulation={handleRunCustomSimulation}
       />
 
-      {/* 7. Interactive MapLibre WebGL Viewport */}
+      {/* 7. Response Spectrum Modal */}
+      <ResponseSpectrumModal
+        isOpen={isSpectrumModalOpen}
+        onClose={() => setIsSpectrumModalOpen(false)}
+        title={spectrumData.title}
+        pga={spectrumData.pga}
+        highlightPeriod={spectrumData.highlightPeriod}
+      />
+
+      {/* 8. Interactive MapLibre WebGL Viewport */}
       <div ref={mapContainerRef} className="map-viewport" />
     </div>
   );

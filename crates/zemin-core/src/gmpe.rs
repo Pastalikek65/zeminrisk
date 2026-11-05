@@ -203,6 +203,84 @@ fn calculate_asb14(
     }
 }
 
+/// Discrete Response Spectrum across standard periods
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResponseSpectrum {
+    pub periods: Vec<f64>,
+    pub sa_g: Vec<f64>,
+    pub tbdy_design_sa_g: Vec<f64>,
+    pub pga_g: f64,
+    pub pgv_cms: f64,
+}
+
+/// Standard periods for structural response evaluation (seconds)
+pub const STANDARD_PERIODS: [f64; 14] = [
+    0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0,
+];
+
+/// Calculate full Response Spectrum Sa(T) and TBDY-2018 Design Spectrum
+pub fn calculate_response_spectrum(
+    source: &EarthquakeSource,
+    site: &SiteCondition,
+    r_jb_km: f64,
+    s_ds: f64,
+    s_d1: f64,
+) -> ResponseSpectrum {
+    let base = calculate_asb14(source, site, r_jb_km);
+    let periods = STANDARD_PERIODS.to_vec();
+    let mut sa_g = Vec::with_capacity(periods.len());
+
+    let vs30 = site.vs30.clamp(50.0, 3000.0);
+    let soil_factor = (750.0 / vs30).powf(0.35);
+
+    for &t in &periods {
+        let sa = if t <= 0.02 {
+            base.pga_g
+        } else {
+            let peak_t = 0.18 + 0.12 * (source.magnitude / 7.0);
+            let width = 0.55;
+            let shape = (-((t.ln() - peak_t.ln()).powi(2)) / (2.0 * width * width)).exp();
+            let amp = 1.0 + 1.65 * shape * soil_factor;
+            (base.pga_g * amp).clamp(1e-5, 8.0)
+        };
+        sa_g.push(sa);
+    }
+
+    let tbdy_design_sa_g = tbdy_2018_design_spectrum(s_ds, s_d1, &periods);
+
+    ResponseSpectrum {
+        periods,
+        sa_g,
+        tbdy_design_sa_g,
+        pga_g: base.pga_g,
+        pgv_cms: base.pgv_cms,
+    }
+}
+
+/// Compute official TBDY-2018 Design Response Spectrum Sae(T) (§2.3.4.1)
+pub fn tbdy_2018_design_spectrum(s_ds: f64, s_d1: f64, periods: &[f64]) -> Vec<f64> {
+    let s_ds = s_ds.max(0.01);
+    let s_d1 = s_d1.max(0.005);
+    let t_a = 0.2 * s_d1 / s_ds;
+    let t_b = s_d1 / s_ds;
+    let t_l = 6.0;
+
+    periods
+        .iter()
+        .map(|&t| {
+            if t < t_a {
+                (0.4 + 0.6 * (t / t_a)) * s_ds
+            } else if t <= t_b {
+                s_ds
+            } else if t <= t_l {
+                s_d1 / t
+            } else {
+                s_d1 * t_l / (t * t)
+            }
+        })
+        .collect()
+}
+
 /// Fallback point source attenuation
 fn calculate_point_source(
     source: &EarthquakeSource,
@@ -471,5 +549,28 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_calculate_response_spectrum_and_tbdy() {
+        let source = EarthquakeSource::new(7.8, 10.0, FaultMechanism::StrikeSlip);
+        let site = SiteCondition::new(360.0);
+        let spec = calculate_response_spectrum(&source, &site, 5.0, 1.5, 0.45);
+
+        assert_eq!(spec.periods.len(), STANDARD_PERIODS.len());
+        assert_eq!(spec.sa_g.len(), STANDARD_PERIODS.len());
+        assert_eq!(spec.tbdy_design_sa_g.len(), STANDARD_PERIODS.len());
+
+        // Peak spectral acceleration should be at least as large as PGA
+        let max_sa = spec.sa_g.iter().cloned().fold(f64::NAN, f64::max);
+        assert!(max_sa >= spec.pga_g);
+
+        // TBDY plateau check: at T between Ta (0.06s) and Tb (0.30s), Sae(T) = S_DS = 1.5g
+        let idx_02s = spec
+            .periods
+            .iter()
+            .position(|&t| (t - 0.2).abs() < 1e-4)
+            .unwrap();
+        assert!((spec.tbdy_design_sa_g[idx_02s] - 1.5).abs() < 1e-3);
     }
 }

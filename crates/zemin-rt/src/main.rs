@@ -9,7 +9,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use zemin_core::{
-    BoundingBox, EarthquakeSource, FaultMechanism, GeoCoord, GmpeModel, ShakeMapRaster,
+    BoundingBox, EarthquakeSource, FaultMechanism, FaultRupture, GeoCoord, GmpeModel,
+    ShakeMapRaster,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,17 +78,30 @@ pub fn process_event(event: &SeismicEvent, grid_size: usize) -> (ShakeMapRaster,
     };
 
     let source = EarthquakeSource::new(event.magnitude, event.depth_km, mech);
-    let epicenter = GeoCoord::new(event.lat, event.lon);
 
-    let raster = ShakeMapRaster::compute(
-        &source,
-        &epicenter,
-        &bbox,
-        grid_size,
-        grid_size,
-        360.0, // Eurocode C/D default Vs30
-        GmpeModel::AkkarBommer2014,
-    );
+    let raster = if event.magnitude >= 7.0 && event.id.contains("M78") {
+        let rupture = FaultRupture::east_anatolian_fault_2023();
+        ShakeMapRaster::compute_with_rupture(
+            &source,
+            &rupture,
+            &bbox,
+            grid_size,
+            grid_size,
+            360.0,
+            GmpeModel::AkkarBommer2014,
+        )
+    } else {
+        let epicenter = GeoCoord::new(event.lat, event.lon);
+        ShakeMapRaster::compute(
+            &source,
+            &epicenter,
+            &bbox,
+            grid_size,
+            grid_size,
+            360.0,
+            GmpeModel::AkkarBommer2014,
+        )
+    };
 
     let duration_micros = start.elapsed().as_micros();
     (raster, duration_micros)
