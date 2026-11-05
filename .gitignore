@@ -1,0 +1,74 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Geospatial & Large Data Formats
+*.tif
+*.tiff
+*.cog
+*.geoparquet
+*.parquet
+*.zarr
+*.nc
+*.h5
+*.las
+*.laz
+*.mbtiles
+*.pmtiles
+*.geojson
+*.gpkg
+*.osm.pbf
+data/cache/
+data/raw/
+data/interim/
+data/processed/
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+dist/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local
+.env.*.local
