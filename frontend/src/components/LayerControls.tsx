@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayerVisibility } from '../types';
-import { Layers, Eye, EyeOff, Boxes, Activity, Satellite, Route, Sparkles } from 'lucide-react';
+import { Layers, Eye, EyeOff, Boxes, Activity, Satellite, Route, Zap, Radio } from 'lucide-react';
 
 interface LayerControlsProps {
   visibility: LayerVisibility;
@@ -117,6 +117,52 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
           </div>
           <button className="layer-visibility-toggle">
             {visibility.isochrones ? (
+              <Eye size={16} className="text-cyan-400" />
+            ) : (
+              <EyeOff size={16} className="text-gray-500" />
+            )}
+          </button>
+        </div>
+
+        {/* Layer 5: MTA Active Tectonic Faults */}
+        <div
+          className={`layer-item ${visibility.faults ? 'layer-active' : 'layer-inactive'}`}
+          onClick={() => onToggle('faults')}
+        >
+          <div className="layer-left">
+            <div className="layer-icon-badge bg-red-500/10 text-red-400">
+              <Zap size={15} />
+            </div>
+            <div className="layer-info">
+              <div className="layer-name">Active Fault Traces</div>
+              <div className="layer-meta-desc">MTA Tectonic Rupture Lines</div>
+            </div>
+          </div>
+          <button className="layer-visibility-toggle">
+            {visibility.faults ? (
+              <Eye size={16} className="text-cyan-400" />
+            ) : (
+              <EyeOff size={16} className="text-gray-500" />
+            )}
+          </button>
+        </div>
+
+        {/* Layer 6: AFAD Strong-Motion Stations */}
+        <div
+          className={`layer-item ${visibility.stations ? 'layer-active' : 'layer-inactive'}`}
+          onClick={() => onToggle('stations')}
+        >
+          <div className="layer-left">
+            <div className="layer-icon-badge bg-cyan-500/10 text-cyan-400">
+              <Radio size={15} />
+            </div>
+            <div className="layer-info">
+              <div className="layer-name">Strong-Motion Stations</div>
+              <div className="layer-meta-desc">AFAD Recorded PGA/PGV Seismometers</div>
+            </div>
+          </div>
+          <button className="layer-visibility-toggle">
+            {visibility.stations ? (
               <Eye size={16} className="text-cyan-400" />
             ) : (
               <EyeOff size={16} className="text-gray-500" />

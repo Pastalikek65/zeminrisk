@@ -3,8 +3,15 @@
 import math
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from zemin.assimilation import AFAD_2023_PAZARCIK_STATIONS, stations_to_geojson
+from zemin.ogc import (
+    get_active_faults_geojson,
+    get_ogc_collections_metadata,
+    get_ogc_conformance,
+)
 
 app = FastAPI(
     title="ZeminRisk Seismic Hazard & Impact API",
@@ -329,3 +336,54 @@ async def compute_isochrone_endpoint(req: IsochroneRequest) -> dict[str, Any]:
         "cutoff_minutes": req.cutoff_minutes,
         "isochrone_geojson": mapping(poly),
     }
+
+
+# =========================================================================
+# OGC API Features (ISO 19168-1) Standards Implementation
+# =========================================================================
+
+
+@app.get("/conformance")
+@app.get("/ogc/conformance")
+async def ogc_conformance_endpoint() -> dict[str, list[str]]:
+    """Declare conformance with OGC API Features Part 1: Core requirements."""
+    return get_ogc_conformance()
+
+
+@app.get("/collections")
+@app.get("/ogc/collections")
+async def ogc_collections_endpoint(request: Request) -> dict[str, Any]:
+    """Catalog of spatial collections available via OGC API."""
+    base_url = str(request.base_url).rstrip("/")
+    return get_ogc_collections_metadata(base_url)
+
+
+@app.get("/collections/active-faults/items")
+@app.get("/ogc/collections/active-faults/items")
+@app.get("/api/v1/faults/mta-active")
+async def get_active_faults_items(
+    bbox: str | None = Query(default=None, description="min_lon,min_lat,max_lon,max_lat"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    """Return MTA Active Tectonic Faults as standard OGC GeoJSON FeatureCollection."""
+    parsed_bbox: tuple[float, float, float, float] | None = None
+    if bbox:
+        try:
+            parts = [float(x.strip()) for x in bbox.split(",")]
+            if len(parts) == 4:
+                parsed_bbox = (parts[0], parts[1], parts[2], parts[3])
+        except ValueError as err:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid bbox format. Expected min_lon,min_lat,max_lon,max_lat",
+            ) from err
+    return get_active_faults_geojson(bbox=parsed_bbox, limit=limit, offset=offset)
+
+
+@app.get("/collections/strong-motion-stations/items")
+@app.get("/ogc/collections/strong-motion-stations/items")
+@app.get("/api/v1/stations/afad-2023")
+async def get_strong_motion_stations() -> dict[str, Any]:
+    """Return AFAD Strong-Motion Seismograph stations as OGC GeoJSON FeatureCollection."""
+    return stations_to_geojson(AFAD_2023_PAZARCIK_STATIONS)

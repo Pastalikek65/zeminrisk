@@ -83,3 +83,51 @@ def test_routing_isochrone_endpoint() -> None:
     assert "isochrone_geojson" in data
     assert data["isochrone_geojson"]["type"] == "Polygon"
     assert len(data["isochrone_geojson"]["coordinates"][0]) >= 3
+
+
+def test_ogc_conformance_endpoint() -> None:
+    res = client.get("/conformance")
+    assert res.status_code == 200
+    data = res.json()
+    assert "conformsTo" in data
+    assert any("req/core" in item for item in data["conformsTo"])
+
+
+def test_ogc_collections_endpoint() -> None:
+    res = client.get("/collections")
+    assert res.status_code == 200
+    data = res.json()
+    assert "collections" in data
+    col_ids = [c["id"] for c in data["collections"]]
+    assert "active-faults" in col_ids
+    assert "strong-motion-stations" in col_ids
+
+
+def test_ogc_active_faults_items_endpoint() -> None:
+    res = client.get("/collections/active-faults/items")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) > 0
+    first = data["features"][0]
+    assert first["geometry"]["type"] == "LineString"
+    assert "name" in first["properties"]
+    assert "mechanism" in first["properties"]
+
+    # Test spatial bbox filter
+    res_bbox = client.get("/collections/active-faults/items?bbox=36.0,36.0,37.0,37.0")
+    assert res_bbox.status_code == 200
+    data_bbox = res_bbox.json()
+    assert data_bbox["type"] == "FeatureCollection"
+
+
+def test_ogc_strong_motion_stations_items_endpoint() -> None:
+    res = client.get("/collections/strong-motion-stations/items")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) >= 7
+    first = data["features"][0]
+    assert first["geometry"]["type"] == "Point"
+    assert "pga_recorded_g" in first["properties"]
+

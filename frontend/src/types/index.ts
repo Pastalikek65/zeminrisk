@@ -28,6 +28,8 @@ export interface LayerVisibility {
   insar: boolean;
   buildings3d: boolean;
   isochrones: boolean;
+  faults: boolean;
+  stations: boolean;
 }
 
 export interface CustomSimulationParams {

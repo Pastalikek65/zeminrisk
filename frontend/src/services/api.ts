@@ -524,6 +524,191 @@ export async function getIsochronesData(centerLon: number = 36.160, centerLat: n
 }
 
 // -------------------------------------------------------------
+// MTA Active Faults & AFAD Strong-Motion Stations
+// -------------------------------------------------------------
+
+export async function getActiveFaultsData(): Promise<GeoJSON.FeatureCollection> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/faults/mta-active`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.features && data.features.length > 0) {
+        return data;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        id: 'EAF_AMANOS',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [36.14, 36.18],
+            [36.25, 36.32],
+            [36.32, 36.42],
+            [36.45, 36.65],
+            [36.58, 36.85],
+          ],
+        },
+        properties: {
+          name: 'East Anatolian Fault - Amanos / Hatay Segment',
+          mechanism: 'strike-slip (left-lateral)',
+          slip_rate_mm_yr: 6.5,
+          last_rupture: '2023-02-06 (Mw 7.8 Pazarcık)',
+          length_km: 115.0,
+        },
+      },
+      {
+        type: 'Feature',
+        id: 'EAF_PAZARCIK',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [36.58, 36.85],
+            [36.80, 37.10],
+            [37.04, 37.29],
+            [37.30, 37.55],
+            [37.52, 37.74],
+          ],
+        },
+        properties: {
+          name: 'East Anatolian Fault - Pazarcık / Narlı Segment',
+          mechanism: 'strike-slip (left-lateral)',
+          slip_rate_mm_yr: 8.0,
+          last_rupture: '2023-02-06 (Mw 7.8 Pazarcık)',
+          length_km: 140.0,
+        },
+      },
+      {
+        type: 'Feature',
+        id: 'CARDAK_FAULT',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [36.60, 38.02],
+            [36.90, 38.05],
+            [37.20, 38.09],
+            [37.60, 38.02],
+            [37.95, 37.98],
+          ],
+        },
+        properties: {
+          name: 'Çardak - Sürgü Fault Zone',
+          mechanism: 'strike-slip (left-lateral)',
+          slip_rate_mm_yr: 4.5,
+          last_rupture: '2023-02-06 (Mw 7.6 Elbistan)',
+          length_km: 160.0,
+        },
+      },
+    ],
+  };
+}
+
+export async function getStationsData(): Promise<GeoJSON.FeatureCollection> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/stations/afad-2023`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.features && data.features.length > 0) {
+        return data;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [37.288, 37.491] },
+        properties: {
+          code: 'TK.4614',
+          name: 'Pazarcık',
+          network: 'AFAD',
+          vs30_ms: 512.0,
+          pga_recorded_g: 1.428,
+          pgv_recorded_cms: 132.5,
+          mmi_observed: 9.8,
+        },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [36.160, 36.202] },
+        properties: {
+          code: 'TK.3123',
+          name: 'Antakya Merkez',
+          network: 'AFAD',
+          vs30_ms: 285.0,
+          pga_recorded_g: 1.185,
+          pgv_recorded_cms: 118.0,
+          mmi_observed: 9.5,
+        },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [35.972, 36.082] },
+        properties: {
+          code: 'TK.3126',
+          name: 'Samandağ',
+          network: 'AFAD',
+          vs30_ms: 340.0,
+          pga_recorded_g: 0.742,
+          pgv_recorded_cms: 72.4,
+          mmi_observed: 8.7,
+        },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [36.178, 36.582] },
+        properties: {
+          code: 'TK.3124',
+          name: 'İskenderun',
+          network: 'AFAD',
+          vs30_ms: 310.0,
+          pga_recorded_g: 0.612,
+          pgv_recorded_cms: 64.2,
+          mmi_observed: 8.2,
+        },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [37.380, 37.066] },
+        properties: {
+          code: 'TK.2708',
+          name: 'Gaziantep Şehitkamil',
+          network: 'AFAD',
+          vs30_ms: 445.0,
+          pga_recorded_g: 0.485,
+          pgv_recorded_cms: 48.6,
+          mmi_observed: 7.8,
+        },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [36.937, 37.585] },
+        properties: {
+          code: 'TK.4612',
+          name: 'Kahramanmaraş Dulkadiroğlu',
+          network: 'AFAD',
+          vs30_ms: 360.0,
+          pga_recorded_g: 1.240,
+          pgv_recorded_cms: 115.2,
+          mmi_observed: 9.6,
+        },
+      },
+    ],
+  };
+}
+
+// -------------------------------------------------------------
 // Combined Scenario Hazard Evaluation
 // -------------------------------------------------------------
 
@@ -532,6 +717,8 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
   insarDpm: GeoJSON.FeatureCollection;
   buildings: GeoJSON.FeatureCollection;
   isochrones: GeoJSON.FeatureCollection;
+  faultLines: GeoJSON.FeatureCollection;
+  stations: GeoJSON.FeatureCollection;
   metrics: HazardMetrics;
   isLiveApi: boolean;
 }> {
@@ -576,6 +763,10 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
   // 4. Isochrones
   const isochrones = await getIsochronesData(36.160, 36.202);
 
+  // 5. MTA Faults & AFAD Stations
+  const faultLines = await getActiveFaultsData();
+  const stations = await getStationsData();
+
   const collapsedPercent = (buildingRes.collapsed / buildingRes.total) * 100;
 
   const metrics: HazardMetrics = {
@@ -594,6 +785,8 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
     insarDpm: insarRes.geojson,
     buildings: buildingRes.geojson,
     isochrones,
+    faultLines,
+    stations,
     metrics,
     isLiveApi: isLive,
   };

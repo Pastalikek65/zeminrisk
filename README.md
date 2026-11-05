@@ -115,6 +115,12 @@ For major tectonic events ($M_w \ge 7.0$), point-source epicentral distance seve
 $$R_{jb} = \min_{s \in \text{FaultSegments}} \text{dist}_{\text{geodesic}}(\mathbf{x}, s)$$
 This ensures accurate $> 1.0g$ near-fault velocity pulses and destructive acceleration matching strong-motion station records.
 
+### 5. Strong-Motion Station Assimilation & Residual Kriging
+Following USGS ShakeMap 4.0 data assimilation standards, empirical GMPE predictions are conditioned with real-time seismometer network observations (e.g. AFAD strong-motion records) using Simple Kriging:
+$$\epsilon_i = \ln(PGA_{\text{obs}, i}) - \ln(PGA_{\text{GMPE}, i})$$
+$$PGA_{\text{conditioned}}(\mathbf{x}) = PGA_{\text{GMPE}}(\mathbf{x}) \cdot \exp\left(\sum_{i=1}^{N_{\text{stat}}} w_i(\mathbf{x}) \epsilon_i\right)$$
+where spatial weights $\mathbf{w}(\mathbf{x}) = \mathbf{C}_{\text{stat,stat}}^{-1} \mathbf{c}_{\text{grid,stat}}(\mathbf{x})$ are derived from an exponential spatial covariance kernel $C(h) = \sigma^2 \exp(-3h/d)$, providing calibrated spatial uncertainty $\sigma_k^2(\mathbf{x})$ across unmonitored zones.
+
 ---
 
 ## 📊 Benchmarks
@@ -207,11 +213,14 @@ npm run build
 
 ### Dashboard Features:
 - **3D Building Footprints:** Extruded building stock with height calculations and color-coded damage classifications according to EMS-98 (`D1_Slight`, `D2_Moderate`, `D3_Extensive`, `D4_Collapse`). Interactive inspection popups with casualty and collapse probabilities.
-- **ShakeMap Ground Motion Layer:** Real-time PGA and Mercalli Intensity (MMI) points generated via ASB14 attenuation models.
+- **Active Fault Traces Layer:** MTA active fault segments (East Anatolian Fault Amanos, Pazarcık, Erkenek segments, Çardak Fault, Dead Sea Fault) with fault kinematics, slip rates, and rupture histories.
+- **Strong-Motion Station Network:** Real-world AFAD seismometer stations displaying recorded PGA/PGV, observed Mercalli intensities, and soil $V_{s30}$ values.
+- **ShakeMap Ground Motion Layer:** Real-time PGA and Mercalli Intensity (MMI) points generated via ASB14 attenuation models and conditioned with station residuals.
 - **InSAR Coherence Loss:** Sentinel-1 Damage Proxy Map (DPM) decorrelation grid showing urban and alluvial structural displacement.
 - **Emergency Reachability Isochrones:** 5-minute, 10-minute, and 15-minute emergency response polygons computed under post-earthquake debris blockage.
 - **Historical Scenario Replay:** One-click replay of the 6 Feb 2023 Pazarcık ($M_w 7.8$) and Elbistan ($M_w 7.6$) earthquakes, plus a custom seismic parameter simulation engine.
-- **Live Telemetry & Metrics:** Live tracking of Max PGA ($g$), Mercalli Intensity (MMI), Collapsed Buildings ratio, Coburn & Spence estimated casualties, and InSAR severe decorrelation percentages.
+- **One-Click GeoJSON Export:** Direct download of calibrated ShakeMap FeatureCollections for instant import into QGIS, ArcGIS, or GeoPandas.
+- **OGC API Features (ISO 19168-1):** Standard-compliant `/collections/active-faults/items` and `/collections/strong-motion-stations/items` with bounding box filtering.
 - **Graceful Fallback:** Automatically communicates with the FastAPI service (`localhost:8000`) and falls back to a deterministic high-precision calibrated twin engine when offline.
 
 ---

@@ -17,7 +17,7 @@ import {
   LayerVisibility,
   CustomSimulationParams,
 } from './types';
-import { Eye, Compass, Building, Activity, RotateCcw } from 'lucide-react';
+import { Eye, Compass, Building, Activity, RotateCcw, Download } from 'lucide-react';
 import './App.css';
 
 // Sleek dark Carto basemap style
@@ -69,7 +69,15 @@ export const App: React.FC = () => {
     insar: true,
     buildings3d: true,
     isochrones: true,
+    faults: true,
+    stations: true,
   });
+
+  // Keep a reference to current GeoJSON for export
+  const currentDataRef = useRef<{
+    shakeMap?: GeoJSON.FeatureCollection;
+    insarDpm?: GeoJSON.FeatureCollection;
+  }>({});
 
   // Layer toggling
   const handleToggleLayer = (key: keyof LayerVisibility) => {
@@ -86,6 +94,8 @@ export const App: React.FC = () => {
       insar: enable,
       buildings3d: enable,
       isochrones: enable,
+      faults: enable,
+      stations: enable,
     };
     setLayersVisibility(updated);
     applyLayerVisibility(updated);
@@ -108,6 +118,10 @@ export const App: React.FC = () => {
     setVis('buildings-3d', vis.buildings3d);
     setVis('isochrones-fill', vis.isochrones);
     setVis('isochrones-line', vis.isochrones);
+    setVis('faults-line', vis.faults);
+    setVis('faults-glow', vis.faults);
+    setVis('stations-circles', vis.stations);
+    setVis('stations-pulse', vis.stations);
   };
 
   // Populate data into MapLibre
@@ -117,6 +131,8 @@ export const App: React.FC = () => {
       insarDpm: GeoJSON.FeatureCollection;
       buildings: GeoJSON.FeatureCollection;
       isochrones: GeoJSON.FeatureCollection;
+      faultLines: GeoJSON.FeatureCollection;
+      stations: GeoJSON.FeatureCollection;
     }) => {
       const map = mapRef.current;
       if (!map) return;
@@ -132,6 +148,13 @@ export const App: React.FC = () => {
       setSourceData('insar-source', data.insarDpm);
       setSourceData('buildings-source', data.buildings);
       setSourceData('isochrones-source', data.isochrones);
+      setSourceData('faults-source', data.faultLines);
+      setSourceData('stations-source', data.stations);
+
+      currentDataRef.current = {
+        shakeMap: data.shakeMap,
+        insarDpm: data.insarDpm,
+      };
     },
     []
   );
@@ -149,6 +172,8 @@ export const App: React.FC = () => {
           insarDpm: result.insarDpm,
           buildings: result.buildings,
           isochrones: result.isochrones,
+          faultLines: result.faultLines,
+          stations: result.stations,
         });
       } catch (err) {
         console.error('Error running scenario:', err);
@@ -426,6 +451,141 @@ export const App: React.FC = () => {
           .addTo(map);
       });
 
+      // 5. MTA Active Fault Lines
+      map.addSource('faults-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'faults-glow',
+        type: 'line',
+        source: 'faults-source',
+        paint: {
+          'line-color': '#ef4444',
+          'line-width': 8,
+          'line-opacity': 0.35,
+          'line-blur': 3,
+        },
+      });
+
+      map.addLayer({
+        id: 'faults-line',
+        type: 'line',
+        source: 'faults-source',
+        paint: {
+          'line-color': '#ff2d55',
+          'line-width': 3.2,
+          'line-opacity': 0.95,
+        },
+      });
+
+      // Click on Fault Line
+      map.on('click', 'faults-line', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const props = e.features[0].properties as any;
+        const coords = e.lngLat;
+
+        const content = `
+          <div class="popup-bld-header">
+            <span class="popup-bld-id text-red-400">Tectonic Fault Trace</span>
+            <span class="hazard-badge badge-severe">${props.mechanism || 'Fault'}</span>
+          </div>
+          <div class="popup-row">
+            <span>Name:</span>
+            <span class="popup-val font-semibold text-rose-300">${props.name}</span>
+          </div>
+          <div class="popup-row">
+            <span>Slip Rate:</span>
+            <span class="popup-val font-mono">${props.slip_rate_mm_yr} mm/yr</span>
+          </div>
+          <div class="popup-row">
+            <span>Length:</span>
+            <span class="popup-val font-mono">${props.length_km} km</span>
+          </div>
+          <div class="popup-row">
+            <span>Last Major Rupture:</span>
+            <span class="popup-val text-amber-400">${props.last_rupture || 'Active'}</span>
+          </div>
+        `;
+
+        if (popupRef.current) popupRef.current.remove();
+        popupRef.current = new Popup({ offset: 10 })
+          .setLngLat(coords)
+          .setHTML(content)
+          .addTo(map);
+      });
+
+      // 6. AFAD Strong-Motion Stations
+      map.addSource('stations-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'stations-pulse',
+        type: 'circle',
+        source: 'stations-source',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': '#06b6d4',
+          'circle-opacity': 0.25,
+        },
+      });
+
+      map.addLayer({
+        id: 'stations-circles',
+        type: 'circle',
+        source: 'stations-source',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#0891b2',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.95,
+        },
+      });
+
+      // Click on Strong-Motion Station
+      map.on('click', 'stations-circles', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const props = e.features[0].properties as any;
+        const coords = e.lngLat;
+
+        const content = `
+          <div class="popup-bld-header">
+            <span class="popup-bld-id text-cyan-400">AFAD Seismometer</span>
+            <span class="hazard-badge status-online">${props.code}</span>
+          </div>
+          <div class="popup-row">
+            <span>Station Name:</span>
+            <span class="popup-val font-semibold">${props.name}</span>
+          </div>
+          <div class="popup-row">
+            <span>Recorded PGA:</span>
+            <span class="popup-val font-mono text-rose-400">${props.pga_recorded_g} g</span>
+          </div>
+          <div class="popup-row">
+            <span>Recorded PGV:</span>
+            <span class="popup-val font-mono text-amber-300">${props.pgv_recorded_cms} cm/s</span>
+          </div>
+          <div class="popup-row">
+            <span>Observed MMI:</span>
+            <span class="popup-val font-mono text-purple-300">MMI ${props.mmi_observed}</span>
+          </div>
+          <div class="popup-row">
+            <span>Soil Vs30:</span>
+            <span class="popup-val font-mono">${props.vs30_ms} m/s</span>
+          </div>
+        `;
+
+        if (popupRef.current) popupRef.current.remove();
+        popupRef.current = new Popup({ offset: 10 })
+          .setLngLat(coords)
+          .setHTML(content)
+          .addTo(map);
+      });
+
       // Load initial scenario data
       runScenario(PRESET_SCENARIOS[0]);
     });
@@ -524,6 +684,21 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleExportGeoJSON = () => {
+    const data = currentDataRef.current.shakeMap;
+    if (!data || !data.features || data.features.length === 0) {
+      alert('No ShakeMap data available to export yet.');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/geo+json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zeminrisk_${activeScenario.id}_shakemap.geojson`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="app-container">
       {/* 1. Header Bar */}
@@ -583,6 +758,14 @@ export const App: React.FC = () => {
         >
           <Compass size={14} className="text-purple-400" />
           <span>Response Hub</span>
+        </button>
+        <button
+          className="cam-btn"
+          onClick={handleExportGeoJSON}
+          title="Download calibrated ShakeMap GeoJSON"
+        >
+          <Download size={14} className="text-emerald-400" />
+          <span>Export GeoJSON</span>
         </button>
       </div>
 

@@ -102,6 +102,35 @@ export const Legend: React.FC<LegendProps> = ({ visibility }) => {
               </div>
             </div>
           )}
+
+          {/* Fault Line Legend */}
+          {visibility.faults && (
+            <div className="legend-section">
+              <div className="legend-section-title">Active Fault Traces</div>
+              <div className="legend-items">
+                <div className="legend-item">
+                  <span className="legend-line" style={{ borderColor: '#ff2d55', borderWidth: '3px' }}></span>
+                  <span className="legend-text">MTA Active Rupture Segment</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stations Legend */}
+          {visibility.stations && (
+            <div className="legend-section">
+              <div className="legend-section-title">Strong-Motion Network</div>
+              <div className="legend-items">
+                <div className="legend-item">
+                  <span
+                    className="legend-swatch"
+                    style={{ background: '#0891b2', borderRadius: '50%', border: '1.5px solid #fff' }}
+                  ></span>
+                  <span className="legend-text">AFAD Seismometer Station</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
