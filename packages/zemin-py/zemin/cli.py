@@ -1,11 +1,12 @@
 """Command-line interface for ZeminRisk."""
 
 import argparse
-import json
-import sys
-import uvicorn
-from zemin.api import app, EarthquakeEventRequest, simulate_shakemap
 import asyncio
+import json
+
+import uvicorn
+
+from zemin.api import EarthquakeEventRequest, simulate_shakemap
 
 
 def main() -> None:
@@ -22,18 +23,24 @@ def main() -> None:
     serve_parser.add_argument("--reload", action="store_true", help="Enable hot reload")
 
     # simulate command
-    sim_parser = subparsers.add_parser("simulate", help="Simulate a ShakeMap for an earthquake event")
+    sim_parser = subparsers.add_parser(
+        "simulate", help="Simulate a ShakeMap for an earthquake event"
+    )
     sim_parser.add_argument("--mag", type=float, required=True, help="Moment magnitude (Mw)")
     sim_parser.add_argument("--lat", type=float, required=True, help="Epicenter latitude")
     sim_parser.add_argument("--lon", type=float, required=True, help="Epicenter longitude")
-    sim_parser.add_argument("--depth", type=float, default=10.0, help="Focal depth in km (default: 10.0)")
+    sim_parser.add_argument(
+        "--depth", type=float, default=10.0, help="Focal depth in km (default: 10.0)"
+    )
     sim_parser.add_argument(
         "--mechanism",
         choices=["strike-slip", "normal", "reverse"],
         default="strike-slip",
         help="Fault mechanism",
     )
-    sim_parser.add_argument("--resolution", type=int, default=60, help="Grid size NxN (default: 60)")
+    sim_parser.add_argument(
+        "--resolution", type=int, default=60, help="Grid size NxN (default: 60)"
+    )
     sim_parser.add_argument("--output", type=str, help="Output path for GeoJSON result")
 
     args = parser.parse_args()

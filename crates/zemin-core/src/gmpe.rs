@@ -133,7 +133,7 @@ fn calculate_asb14(
     let b1: f64 = -0.420;
     let b2: f64 = -0.150;
     let pga_rock_ref: f64 = 0.15; // approximate reference input ground motion
-    let f_site = b1 * (vs30 / v_ref).ln() + b2 * (((pga_rock_ref + 0.1) / 0.1) as f64).ln();
+    let f_site = b1 * (vs30 / v_ref).ln() + b2 * ((pga_rock_ref + 0.1) / 0.1).ln();
 
     // Total median ln(PGA in g)
     let ln_pga_g = f_mag + f_dist + f_fault + f_site;
@@ -141,8 +141,8 @@ fn calculate_asb14(
 
     // Empirical scaling for PGV (cm/s), SA(0.3s), SA(1.0s)
     let pga_cms2 = pga_g * 980.665;
-    let pgv_cms = (pga_cms2 * 0.12 * (mw / 6.0).powf(1.8) / (vs30 / 400.0).sqrt())
-        .clamp(1e-4, 300.0);
+    let pgv_cms =
+        (pga_cms2 * 0.12 * (mw / 6.0).powf(1.8) / (vs30 / 400.0).sqrt()).clamp(1e-4, 300.0);
     let sa_03s_g = (pga_g * 2.35 * (750.0 / vs30).powf(0.35)).clamp(1e-5, 8.0);
     let sa_10s_g = (pga_g * 0.95 * (mw / 6.5) * (750.0 / vs30).powf(0.65)).clamp(1e-5, 5.0);
 

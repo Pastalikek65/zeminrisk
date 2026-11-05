@@ -13,6 +13,7 @@ pub use raster::{ShakeMapRaster, ShakeMapStats};
 pub use spatial::{BoundingBox, GeoCoord, EARTH_RADIUS_KM};
 
 #[cfg(feature = "python")]
+#[allow(clippy::too_many_arguments, clippy::useless_conversion)]
 mod pyo3_bindings {
     use super::*;
     use pyo3::prelude::*;
@@ -35,7 +36,8 @@ mod pyo3_bindings {
         let site = SiteCondition::new(vs30);
         let res = calculate_ground_motion(&src, &site, r_jb_km, GmpeModel::AkkarBommer2014);
 
-        serde_json::to_string(&res).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+        serde_json::to_string(&res)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }
 
     #[pyfunction]

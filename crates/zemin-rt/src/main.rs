@@ -109,8 +109,14 @@ async fn main() -> anyhow::Result<()> {
         elapsed_us as f64 / 1000.0,
         10000.0 / (elapsed_us as f64 / 1000.0)
     );
-    info!("Peak Ground Acceleration (PGA): {:.3} g", raster.stats.max_pga_g);
-    info!("Peak Ground Velocity (PGV): {:.1} cm/s", raster.stats.max_pgv_cms);
+    info!(
+        "Peak Ground Acceleration (PGA): {:.3} g",
+        raster.stats.max_pga_g
+    );
+    info!(
+        "Peak Ground Velocity (PGV): {:.1} cm/s",
+        raster.stats.max_pgv_cms
+    );
     info!("Max Instrumental MMI: {:.2}", raster.stats.max_mmi);
     info!(
         "Estimated severe impact area (MMI >= VII): {:.1} km^2",

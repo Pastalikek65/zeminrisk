@@ -1,13 +1,14 @@
 """OGC API and FastAPI service for ZeminRisk."""
 
-from typing import Any, Literal
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
 import math
+from typing import Any, Literal
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="ZeminRisk Seismic Hazard & Impact API",
-    description="High-performance real-time ShakeMap, ground motion, and disaster response platform.",
+    description="Real-time ShakeMap and disaster response platform.",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -20,8 +21,15 @@ class EarthquakeEventRequest(BaseModel):
     epicenter_lat: float = Field(..., ge=-90.0, le=90.0, description="Epicenter latitude")
     epicenter_lon: float = Field(..., ge=-180.0, le=180.0, description="Epicenter longitude")
     fault_mechanism: Literal["strike-slip", "normal", "reverse"] = "strike-slip"
-    default_vs30: float = Field(360.0, ge=100.0, le=2500.0, description="Time-averaged shear wave velocity Vs30 (m/s)")
-    grid_resolution: int = Field(50, ge=10, le=200, description="Grid resolution (NxN points)")
+    default_vs30: float = Field(
+        default=360.0,
+        ge=100.0,
+        le=2500.0,
+        description="Time-averaged shear wave velocity Vs30 (m/s)",
+    )
+    grid_resolution: int = Field(
+        default=50, ge=10, le=200, description="Grid resolution (NxN points)"
+    )
 
 
 class ShakeMapResponse(BaseModel):
@@ -108,7 +116,10 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
                     features.append(
                         {
                             "type": "Feature",
-                            "geometry": {"type": "Point", "coordinates": [round(lon, 4), round(lat, 4)]},
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [round(lon, 4), round(lat, 4)],
+                            },
                             "properties": {
                                 "pga_g": round(pga_g, 4),
                                 "pgv_cms": round(pgv_cms, 2),
@@ -133,4 +144,4 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
             },
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
