@@ -68,7 +68,48 @@ function getDistanceKm(lon1: number, lat1: number, lon2: number, lat2: number): 
   return 6371 * c;
 }
 
-// ASB14 GMPE approximation for fallback
+// Distance from point to line segment in projected geodetic space
+function distanceToSegmentKm(pLon: number, pLat: number, aLon: number, aLat: number, bLon: number, bLat: number): number {
+  const dLat = bLat - aLat;
+  const dLon = bLon - aLon;
+  const lenSq = dLat * dLat + dLon * dLon;
+  if (lenSq === 0) return getDistanceKm(pLon, pLat, aLon, aLat);
+  const t = Math.max(0, Math.min(1, ((pLon - aLon) * dLon + (pLat - aLat) * dLat) / lenSq));
+  const projLon = aLon + t * dLon;
+  const projLat = aLat + t * dLat;
+  return getDistanceKm(pLon, pLat, projLon, projLat);
+}
+
+// 2023 Mw 7.8 East Anatolian Fault rupture trace (~350 km bilateral segment)
+const EAF_2023_RUPTURE: [number, number][] = [
+  [36.14, 36.18], // Antakya / Samandag basin
+  [36.32, 36.42], // Kirikhan / Amik plain
+  [36.58, 36.85], // Hassa / Nurdagi
+  [37.04, 37.29], // Pazarcik nucleation zone
+  [37.52, 37.74], // Golbasi
+  [38.05, 38.08], // Celikhan northeast termination
+];
+
+function getFaultDistanceKm(lon: number, lat: number, scenario: EarthquakeScenario): number {
+  if (scenario.id === 'pazarcik') {
+    let minDist = Infinity;
+    for (let i = 0; i < EAF_2023_RUPTURE.length - 1; i++) {
+      const segDist = distanceToSegmentKm(
+        lon,
+        lat,
+        EAF_2023_RUPTURE[i][0],
+        EAF_2023_RUPTURE[i][1],
+        EAF_2023_RUPTURE[i + 1][0],
+        EAF_2023_RUPTURE[i + 1][1]
+      );
+      if (segDist < minDist) minDist = segDist;
+    }
+    return minDist;
+  }
+  return getDistanceKm(scenario.epicenter[0], scenario.epicenter[1], lon, lat);
+}
+
+// ASB14 GMPE formulation
 function computePGA(mw: number, depthKm: number, distKm: number, vs30: number = 360): number {
   const rJb = Math.max(0.5, distKm);
   const c1 = 6.75;
@@ -87,10 +128,24 @@ function computePGA(mw: number, depthKm: number, distKm: number, vs30: number = 
   return Math.max(0.01, Math.min(3.5, Math.exp(lnPga)));
 }
 
+// Worden et al. (2012) Instrumental MMI with PGA in cm/s^2 (Gal)
 function pgaToMmi(pgaG: number): number {
-  const logPga = Math.log10(pgaG * 100);
-  let mmi = logPga <= 1.0 ? 1.78 + 1.55 * logPga : 3.1 + 2.87 * logPga;
-  return Math.max(1.0, Math.min(10.5, mmi));
+  const pgaCms2 = Math.max(1e-4, pgaG * 980.665);
+  const logPga = Math.log10(pgaCms2);
+  const mmiPga = logPga <= 1.57 ? 1.78 + 1.55 * logPga : -1.60 + 3.70 * logPga;
+
+  const pgvEst = Math.max(0.01, pgaG * 980.665 * 0.12);
+  const logPgv = Math.log10(pgvEst);
+  const mmiPgv = logPgv <= 0.53 ? 3.78 + 1.80 * logPgv : 3.29 + 2.72 * logPgv;
+
+  const mmi =
+    mmiPga < 4.5
+      ? mmiPga
+      : mmiPga < 7.0
+        ? (1.0 - (mmiPga - 4.5) / 2.5) * mmiPga + ((mmiPga - 4.5) / 2.5) * mmiPgv
+        : mmiPgv;
+
+  return Math.max(1.0, Math.min(10.0, mmi));
 }
 
 // Generate ShakeMap GeoJSON
@@ -134,7 +189,7 @@ export async function getShakeMapData(scenario: EarthquakeScenario): Promise<Geo
     const lat = minLat + r * latStep;
     for (let c = 0; c <= steps; c++) {
       const lon = minLon + c * lonStep;
-      const distKm = getDistanceKm(scenario.epicenter[0], scenario.epicenter[1], lon, lat);
+      const distKm = getFaultDistanceKm(lon, lat, scenario);
       const pga = computePGA(scenario.magnitude, scenario.depthKm, distKm);
       const mmi = pgaToMmi(pga);
 
@@ -185,10 +240,14 @@ export async function getInsarDpmData(scenario: EarthquakeScenario): Promise<{
     });
     if (res.ok) {
       const data = await res.json();
+      const geojson =
+        data.geojson && data.geojson.features && data.geojson.features.length > 0
+          ? (data.geojson as GeoJSON.FeatureCollection)
+          : generateInsarPolygons(scenario.magnitude, scenario.epicenter);
       return {
-        geojson: generateInsarPolygons(scenario.magnitude, scenario.epicenter),
-        severeRatio: data.severe_damage_ratio || 0.42,
-        meanDpm: data.mean_dpm || 0.58,
+        geojson,
+        severeRatio: data.severe_damage_ratio ?? 0.42,
+        meanDpm: data.mean_dpm ?? 0.58,
       };
     }
   } catch {
@@ -481,9 +540,31 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
   // 1. ShakeMap
   const shakeMap = await getShakeMapData(scenario);
 
-  // Derive local PGA in Antakya [36.16, 36.20]
-  const antakyaDist = getDistanceKm(scenario.epicenter[0], scenario.epicenter[1], 36.16, 36.20);
-  const localPga = customPga !== undefined ? customPga : computePGA(scenario.magnitude, scenario.depthKm, antakyaDist);
+  // Derive local PGA in Antakya [36.160, 36.202]
+  let localPga = customPga;
+  if (localPga === undefined) {
+    // Sample directly from simulated ShakeMap points nearest to Antakya
+    let nearestDistSq = Infinity;
+    let sampledPga: number | undefined;
+    if (shakeMap && shakeMap.features) {
+      for (const f of shakeMap.features) {
+        if (f.geometry && f.geometry.type === 'Point') {
+          const coords = (f.geometry as GeoJSON.Point).coordinates;
+          const dSq = Math.pow(coords[0] - 36.160, 2) + Math.pow(coords[1] - 36.202, 2);
+          if (dSq < nearestDistSq) {
+            nearestDistSq = dSq;
+            sampledPga = f.properties?.pga_g;
+          }
+        }
+      }
+    }
+    if (sampledPga !== undefined && nearestDistSq < 0.15) {
+      localPga = sampledPga;
+    } else {
+      const faultDist = getFaultDistanceKm(36.160, 36.202, scenario);
+      localPga = computePGA(scenario.magnitude, scenario.depthKm, faultDist);
+    }
+  }
   const localMmi = pgaToMmi(localPga);
 
   // 2. InSAR DPM

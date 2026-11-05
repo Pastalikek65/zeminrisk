@@ -3,7 +3,7 @@
 use crate::gmpe::{
     calculate_ground_motion, EarthquakeSource, GmpeModel, GroundMotionIntensity, SiteCondition,
 };
-use crate::spatial::{BoundingBox, GeoCoord};
+use crate::spatial::{BoundingBox, FaultRupture, GeoCoord};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -35,10 +35,31 @@ pub struct ShakeMapRaster {
 }
 
 impl ShakeMapRaster {
-    /// Compute a parallel ShakeMap across the designated bounding box.
+    /// Compute a parallel ShakeMap from a point epicenter across the designated bounding box.
     pub fn compute(
         source: &EarthquakeSource,
         epicenter: &GeoCoord,
+        bbox: &BoundingBox,
+        nrows: usize,
+        ncols: usize,
+        default_vs30: f64,
+        model: GmpeModel,
+    ) -> Self {
+        Self::compute_with_rupture(
+            source,
+            &FaultRupture::Point(*epicenter),
+            bbox,
+            nrows,
+            ncols,
+            default_vs30,
+            model,
+        )
+    }
+
+    /// Compute a parallel ShakeMap using a finite fault rupture geometry (Point or Polyline trace).
+    pub fn compute_with_rupture(
+        source: &EarthquakeSource,
+        rupture: &FaultRupture,
         bbox: &BoundingBox,
         nrows: usize,
         ncols: usize,
@@ -78,7 +99,7 @@ impl ShakeMapRaster {
         let results: Vec<GroundMotionIntensity> = coords
             .par_iter()
             .map(|coord| {
-                let r_jb = epicenter.distance_haversine_km(coord);
+                let r_jb = rupture.distance_rjb_km(coord);
                 calculate_ground_motion(source, &site, r_jb, model)
             })
             .collect();

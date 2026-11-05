@@ -260,7 +260,12 @@ fn calculate_point_source(
 }
 
 /// Converts PGA (g) and PGV (cm/s) to Instrumental Modified Mercalli Intensity (MMI).
-/// Follows Worden et al. (2012) Shakemap standards.
+/// Implements Worden et al. (2012) continuous piecewise bilinear regressions.
+///
+/// Reference:
+/// Worden, C. B., Gerstenberger, M. C., Rhoades, D. A., & Wald, D. J. (2012).
+/// "Probabilistic conversion of ground motion to Modified Mercalli Intensity."
+/// Computer & Geosciences, 44, 46-54.
 #[inline]
 pub fn convert_pga_pgv_to_mmi(pga_g: f64, pgv_cms: f64) -> f64 {
     let safe_pga = if pga_g.is_finite() && pga_g > 0.0 {
@@ -268,11 +273,15 @@ pub fn convert_pga_pgv_to_mmi(pga_g: f64, pgv_cms: f64) -> f64 {
     } else {
         1e-6
     };
-    let log_pga = (safe_pga * 100.0).log10();
-    let mmi_pga = if log_pga <= 1.0 {
+    // Convert PGA in g to cm/s^2 (Gal) for Worden (2012) regressions
+    let pga_cms2 = safe_pga * 980.665;
+    let log_pga = pga_cms2.log10();
+
+    // Worden (2012) Table 3 for PGA (cm/s^2): log10(t1) = 1.57 (approx 37.15 cm/s^2 = 0.038g)
+    let mmi_pga = if log_pga <= 1.57 {
         1.78 + 1.55 * log_pga
     } else {
-        3.10 + 2.87 * log_pga
+        -1.60 + 3.70 * log_pga
     };
 
     let safe_pgv = if pgv_cms.is_finite() && pgv_cms > 0.0 {
@@ -281,17 +290,23 @@ pub fn convert_pga_pgv_to_mmi(pga_g: f64, pgv_cms: f64) -> f64 {
         1e-4
     };
     let log_pgv = safe_pgv.log10();
-    let mmi_pgv = if log_pgv <= 0.5 {
+
+    // Worden (2012) Table 3 for PGV (cm/s): log10(t2) = 0.53 (approx 3.39 cm/s)
+    let mmi_pgv = if log_pgv <= 0.53 {
         3.78 + 1.80 * log_pgv
     } else {
-        4.37 + 2.72 * log_pgv
+        3.29 + 2.72 * log_pgv
     };
 
-    // For higher intensities (MMI > 5.5), PGV correlates better with structural damage
-    let mmi = if mmi_pga < 5.0 {
+    // For low shaking (MMI < 4.5), PGA governs; for high shaking (MMI >= 4.5),
+    // structural damage correlates more strongly with PGV
+    let mmi = if mmi_pga < 4.5 {
         mmi_pga
+    } else if mmi_pga < 7.0 {
+        let w = (mmi_pga - 4.5) / 2.5;
+        (1.0 - w) * mmi_pga + w * mmi_pgv
     } else {
-        0.4 * mmi_pga + 0.6 * mmi_pgv
+        mmi_pgv
     };
 
     if mmi.is_finite() {

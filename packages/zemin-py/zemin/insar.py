@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import rasterio
+from rasterio.enums import Resampling
 from rasterio.transform import from_bounds
 
 # Sentinel-1 C-band radar wavelength in meters
@@ -199,10 +200,16 @@ def write_cog(
     bounds: tuple[float, float, float, float],
     crs: str = "EPSG:4326",
 ) -> None:
-    """Write 2D float32 raster as GeoTIFF with spatial transform."""
+    """Write 2D float32 raster as Cloud-Optimized GeoTIFF (COG).
+
+    Applies spatial transform, deflate compression, 256x256 tiling, and pyramid overviews.
+    """
     min_lon, min_lat, max_lon, max_lat = bounds
     nrows, ncols = data.shape
     transform = from_bounds(min_lon, min_lat, max_lon, max_lat, ncols, nrows)
+
+    # Standard COG block size (must be divisible by 16)
+    block_size = 256 if nrows >= 256 and ncols >= 256 else 16
 
     with rasterio.open(
         output_path,
@@ -214,6 +221,17 @@ def write_cog(
         dtype=rasterio.float32,
         crs=crs,
         transform=transform,
-        compress="lzw",
+        compress="deflate",
+        tiled=True,
+        blockxsize=block_size,
+        blockysize=block_size,
     ) as dst:
         dst.write(data, 1)
+        # Compute multi-resolution pyramid overviews if raster size allows
+        min_dim = min(nrows, ncols)
+        if min_dim >= 32:
+            factors = [2, 4]
+            if min_dim >= 128:
+                factors.append(8)
+            dst.build_overviews(factors, Resampling.average)
+            dst.update_tags(ns="rio_overview", resampling="average")

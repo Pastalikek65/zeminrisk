@@ -47,16 +47,53 @@ async def health_check() -> dict[str, str]:
 async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
     """Simulate ground motion field (PGA, PGV, MMI) using Akkar-Sandikkaya-Bommer formulation."""
     try:
+        import json
+
         # Bounding box ~2 degrees around epicenter
         delta = 2.0
         min_lat = req.epicenter_lat - delta
         max_lat = req.epicenter_lat + delta
         min_lon = req.epicenter_lon - delta
         max_lon = req.epicenter_lon + delta
-
-        # Grid generation
         nrows = req.grid_resolution
         ncols = req.grid_resolution
+
+        try:
+            import zemin_core  # type: ignore[import-untyped]
+
+            geojson_str = zemin_core.compute_shakemap_geojson(
+                req.magnitude,
+                req.depth_km,
+                req.epicenter_lat,
+                req.epicenter_lon,
+                min_lat,
+                max_lat,
+                min_lon,
+                max_lon,
+                nrows,
+                ncols,
+                req.default_vs30,
+                True,
+            )
+            geojson_obj: dict[str, Any] = json.loads(geojson_str)
+            meta: dict[str, Any] = geojson_obj.get("metadata", {})
+            return ShakeMapResponse(
+                status="success",
+                metadata={
+                    "magnitude": req.magnitude,
+                    "epicenter": [req.epicenter_lon, req.epicenter_lat],
+                    "max_pga_g": meta.get("max_pga_g", 0.0),
+                    "max_mmi": meta.get("max_mmi", 0.0),
+                    "total_points_evaluated": nrows * ncols,
+                    "points_exported": len(geojson_obj.get("features", [])),
+                    "engine": "zemin_core::rust",
+                },
+                geojson=geojson_obj,
+            )
+        except ImportError:
+            pass
+
+        # Python fallback implementation
         lat_step = (max_lat - min_lat) / (nrows - 1)
         lon_step = (max_lon - min_lon) / (ncols - 1)
 
@@ -81,7 +118,7 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
                 r_jb = 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
                 r_jb = max(0.1, r_jb)
 
-                # ASB14 Simplified Ground Motion Form
+                # ASB14 Ground Motion Formulation
                 mw = req.magnitude
                 c1 = 6.75
                 a1 = 2.4563
@@ -99,12 +136,14 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
                 pga_g = max(1e-5, min(5.0, math.exp(ln_pga_g)))
                 pgv_cms = max(1e-4, min(300.0, pga_g * 980.665 * 0.12 * ((mw / 6.0) ** 1.8)))
 
-                # Worden et al. MMI
-                log_pga = math.log10(pga_g * 100.0)
-                mmi_pga = 1.78 + 1.55 * log_pga if log_pga <= 1.0 else 3.10 + 2.87 * log_pga
+                # Worden et al. MMI with PGA in cm/s^2
+                pga_cms2 = pga_g * 980.665
+                log_pga = math.log10(pga_cms2)
+                mmi_pga = 1.78 + 1.55 * log_pga if log_pga <= 1.57 else -1.60 + 3.70 * log_pga
                 log_pgv = math.log10(max(0.01, pgv_cms))
-                mmi_pgv = 3.78 + 1.80 * log_pgv if log_pgv <= 0.5 else 4.37 + 2.72 * log_pgv
-                mmi = mmi_pga if mmi_pga < 5.0 else 0.4 * mmi_pga + 0.6 * mmi_pgv
+                mmi_pgv = 3.78 + 1.80 * log_pgv if log_pgv <= 0.53 else 3.29 + 2.72 * log_pgv
+
+                mmi = mmi_pga if mmi_pga < 4.5 else 0.4 * mmi_pga + 0.6 * mmi_pgv
                 mmi = max(1.0, min(10.0, mmi))
 
                 if pga_g > max_pga:
@@ -137,6 +176,7 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
                 "max_mmi": round(max_mmi, 2),
                 "total_points_evaluated": nrows * ncols,
                 "points_exported": len(features),
+                "engine": "python_fallback",
             },
             geojson={
                 "type": "FeatureCollection",
@@ -172,6 +212,43 @@ async def simulate_insar_endpoint(req: InSARDpmRequest) -> dict[str, Any]:
         nrows=req.resolution,
         ncols=req.resolution,
     )
+    # Build GeoJSON polygon grid of DPM features
+    features = []
+    nrows, ncols = res.dpm.shape
+    dlon = (req.max_lon - req.min_lon) / ncols
+    dlat = (req.max_lat - req.min_lat) / nrows
+
+    for r in range(nrows):
+        lat0 = req.max_lat - (r + 1) * dlat
+        lat1 = req.max_lat - r * dlat
+        for c in range(ncols):
+            val = float(res.dpm[r, c])
+            if val > 0.25:
+                lon0 = req.min_lon + c * dlon
+                lon1 = req.min_lon + (c + 1) * dlon
+                poly_coords = [
+                    [round(lon0, 5), round(lat0, 5)],
+                    [round(lon1, 5), round(lat0, 5)],
+                    [round(lon1, 5), round(lat1, 5)],
+                    [round(lon0, 5), round(lat1, 5)],
+                    [round(lon0, 5), round(lat0, 5)],
+                ]
+                features.append(
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Polygon", "coordinates": [poly_coords]},
+                        "properties": {
+                            "dpm": round(val, 3),
+                            "loss_percent": round(val * 100),
+                            "severity": (
+                                "Critical"
+                                if val > 0.65
+                                else ("Heavy" if val > 0.45 else "Moderate")
+                            ),
+                        },
+                    }
+                )
+
     return {
         "status": "success",
         "severe_damage_ratio": round(res.severe_damage_ratio, 4),
@@ -179,6 +256,10 @@ async def simulate_insar_endpoint(req: InSARDpmRequest) -> dict[str, Any]:
         "mean_dpm": round(float(res.dpm.mean()), 4),
         "max_dpm": round(float(res.dpm.max()), 4),
         "bounds": list(res.bounds),
+        "geojson": {
+            "type": "FeatureCollection",
+            "features": features,
+        },
     }
 
 
@@ -231,10 +312,14 @@ async def compute_isochrone_endpoint(req: IsochroneRequest) -> dict[str, Any]:
     from zemin.routing import create_sample_antakya_road_grid, generate_isochrone_polygon
 
     grid = create_sample_antakya_road_grid(
-        center_lon=req.center_lon, center_lat=req.center_lat, grid_n=5
+        center_lon=req.center_lon, center_lat=req.center_lat, grid_n=7
     )
-    center_node = 12  # Middle of 5x5 grid
-    poly = generate_isochrone_polygon(grid, center_node, req.cutoff_minutes)
+    closest_node = min(
+        grid.nodes.keys(),
+        key=lambda nid: (grid.nodes[nid].lat - req.center_lat) ** 2
+        + (grid.nodes[nid].lon - req.center_lon) ** 2,
+    )
+    poly = generate_isochrone_polygon(grid, closest_node, req.cutoff_minutes)
 
     if poly is None:
         raise HTTPException(status_code=400, detail="Could not form polygon from reachable nodes")

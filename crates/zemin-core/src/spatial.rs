@@ -51,6 +51,95 @@ impl GeoCoord {
     }
 }
 
+/// Computes the perpendicular or closest distance (km) from a site to a geodetic line segment.
+pub fn distance_point_to_geodetic_segment_km(p: &GeoCoord, a: &GeoCoord, b: &GeoCoord) -> f64 {
+    let mean_lat = ((a.lat + b.lat + p.lat) / 3.0).to_radians();
+    let kx = 111.32 * mean_lat.cos();
+    let ky = 110.57;
+
+    // Local coordinates in km relative to P
+    let ax = (a.lon - p.lon) * kx;
+    let ay = (a.lat - p.lat) * ky;
+    let bx = (b.lon - p.lon) * kx;
+    let by = (b.lat - p.lat) * ky;
+
+    let vx = bx - ax;
+    let vy = by - ay;
+    let seg_len_sq = vx * vx + vy * vy;
+
+    if seg_len_sq <= 1e-9 {
+        return (ax * ax + ay * ay).sqrt();
+    }
+
+    // Projection scalar t of P(0,0) onto segment A->B
+    let t = ((-ax * vx - ay * vy) / seg_len_sq).clamp(0.0, 1.0);
+    let cx = ax + t * vx;
+    let cy = ay + t * vy;
+
+    (cx * cx + cy * cy).sqrt()
+}
+
+/// Surface projection of a seismic fault rupture (Point or Polyline trace).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FaultRupture {
+    Point(GeoCoord),
+    Trace(Vec<GeoCoord>),
+}
+
+impl FaultRupture {
+    pub fn point(lat: f64, lon: f64) -> Self {
+        Self::Point(GeoCoord::new(lat, lon))
+    }
+
+    pub fn trace(coords: Vec<GeoCoord>) -> Self {
+        if coords.len() <= 1 {
+            if let Some(first) = coords.first() {
+                Self::Point(*first)
+            } else {
+                Self::Point(GeoCoord::new(0.0, 0.0))
+            }
+        } else {
+            Self::Trace(coords)
+        }
+    }
+
+    /// Primary surface rupture trace of the 6 Feb 2023 M7.8 Pazarcık earthquake
+    /// (~350 km along the East Anatolian Fault from Çelikhan down through Antakya).
+    pub fn east_anatolian_fault_2023() -> Self {
+        Self::Trace(vec![
+            GeoCoord::new(38.08, 38.28), // Çelikhan (NE terminus)
+            GeoCoord::new(37.82, 37.75), // Gölbaşı
+            GeoCoord::new(37.49, 37.31), // Pazarcık
+            GeoCoord::new(37.38, 36.85), // Türkoğlu / Narlı branch
+            GeoCoord::new(36.95, 36.55), // Nurdağı / Hassa
+            GeoCoord::new(36.52, 36.35), // Kırıkhan
+            GeoCoord::new(36.21, 36.16), // Antakya center
+            GeoCoord::new(36.08, 35.95), // Samandağ (SW terminus)
+        ])
+    }
+
+    /// Compute closest Joyner-Boore distance R_jb (km) from a site to the surface rupture projection.
+    pub fn distance_rjb_km(&self, site: &GeoCoord) -> f64 {
+        match self {
+            Self::Point(p) => site.distance_haversine_km(p),
+            Self::Trace(pts) => {
+                let mut min_dist = f64::INFINITY;
+                for window in pts.windows(2) {
+                    let d = distance_point_to_geodetic_segment_km(site, &window[0], &window[1]);
+                    if d < min_dist {
+                        min_dist = d;
+                    }
+                }
+                if min_dist.is_finite() {
+                    min_dist
+                } else {
+                    0.0
+                }
+            }
+        }
+    }
+}
+
 /// Bounding box defined by min/max latitudes and longitudes.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BoundingBox {
@@ -177,5 +266,23 @@ mod tests {
         let single = bbox.generate_grid(1, 1);
         assert_eq!(single.len(), 1);
         assert_eq!(single[0], GeoCoord::new(36.0, 35.0));
+    }
+
+    #[test]
+    fn test_east_anatolian_fault_finite_rupture_distance() {
+        let rupture = FaultRupture::east_anatolian_fault_2023();
+        // Antakya city center
+        let antakya = GeoCoord::new(36.202, 36.160);
+        let rjb = rupture.distance_rjb_km(&antakya);
+        // Antakya lies immediately adjacent to the rupture trace (< 3 km)
+        assert!(
+            rjb < 3.0,
+            "Antakya finite fault R_jb should be < 3 km, got {rjb}"
+        );
+
+        // Far away city (e.g. Ankara approx 39.93, 32.85)
+        let ankara = GeoCoord::new(39.93, 32.85);
+        let rjb_ankara = rupture.distance_rjb_km(&ankara);
+        assert!(rjb_ankara > 400.0);
     }
 }

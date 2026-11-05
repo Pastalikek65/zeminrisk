@@ -10,7 +10,7 @@ pub use gmpe::{
     SiteCondition,
 };
 pub use raster::{ShakeMapRaster, ShakeMapStats};
-pub use spatial::{BoundingBox, GeoCoord, EARTH_RADIUS_KM};
+pub use spatial::{BoundingBox, FaultRupture, GeoCoord, EARTH_RADIUS_KM};
 
 #[cfg(feature = "python")]
 #[allow(clippy::too_many_arguments, clippy::useless_conversion)]
@@ -41,7 +41,7 @@ mod pyo3_bindings {
     }
 
     #[pyfunction]
-    #[pyo3(signature = (mag, depth_km, epi_lat, epi_lon, min_lat, max_lat, min_lon, max_lon, nrows, ncols, vs30=360.0))]
+    #[pyo3(signature = (mag, depth_km, epi_lat, epi_lon, min_lat, max_lat, min_lon, max_lon, nrows, ncols, vs30=360.0, use_finite_fault=false))]
     fn compute_shakemap_geojson(
         mag: f64,
         depth_km: f64,
@@ -54,14 +54,20 @@ mod pyo3_bindings {
         nrows: usize,
         ncols: usize,
         vs30: f64,
+        use_finite_fault: bool,
     ) -> PyResult<String> {
         let src = EarthquakeSource::new(mag, depth_km, FaultMechanism::StrikeSlip);
-        let epi = GeoCoord::new(epi_lat, epi_lon);
         let bbox = BoundingBox::new(min_lat, max_lat, min_lon, max_lon);
 
-        let raster = ShakeMapRaster::compute(
+        let rupture = if use_finite_fault && mag >= 7.0 {
+            FaultRupture::east_anatolian_fault_2023()
+        } else {
+            FaultRupture::point(epi_lat, epi_lon)
+        };
+
+        let raster = ShakeMapRaster::compute_with_rupture(
             &src,
-            &epi,
+            &rupture,
             &bbox,
             nrows,
             ncols,

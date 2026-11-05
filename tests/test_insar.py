@@ -6,6 +6,7 @@ from zemin.insar import (
     compute_coherence_loss,
     simulate_insar_damage_proxy,
     unwrapped_phase_to_displacement,
+    write_cog,
 )
 
 
@@ -85,5 +86,25 @@ def test_coherence_loss_all_nan_or_zero() -> None:
     assert not np.isnan(dpm_mixed).any()
     assert np.all(dpm_mixed == 0.0)
     assert ratio_mixed == 0.0
+
+
+def test_write_cog_with_tiling_and_overviews(tmp_path: pytest.TempPathFactory) -> None:
+    import rasterio
+
+    data = np.full((64, 64), 0.5, dtype=np.float32)
+    bounds = (36.0, 36.0, 36.5, 36.5)
+    cog_path = str(tmp_path / "test_output.tif")  # type: ignore[operator]
+
+    write_cog(cog_path, data, bounds)
+
+    with rasterio.open(cog_path) as src:
+        assert src.profile.get("tiled") is True
+        assert src.count == 1
+        assert src.shape == (64, 64)
+        # Should have built overviews for factors [2, 4]
+        assert len(src.overviews(1)) >= 2
+        # Verify read data
+        read_data = src.read(1)
+        assert np.allclose(read_data, 0.5)
 
 

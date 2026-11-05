@@ -101,11 +101,19 @@ incorporating fictive rupture depth $a_6 = 7.5\text{ km}$ to constrain near-fiel
 Site response is evaluated as a function of the upper 30-meter shear wave velocity $V_{s30}$ relative to the reference bedrock condition ($V_{\text{ref}} = 750\text{ m/s}$):
 $$f_{\text{site}}(V_{s30}) = b_1 \ln\left(\frac{V_{s30}}{V_{\text{ref}}}\right) + b_2 \ln\left[\frac{PGA_{\text{ref}} + c}{c}\right]$$
 
-### 4. Instrumental MMI Conversion
-Continuous ground motions are mapped to the Modified Mercalli Intensity scale via **Worden et al. (2012)** dual-threshold regressions:
-- For $PGA \le 1.0\%g$: $\text{MMI} = 1.78 + 1.55 \log_{10}(PGA)$
-- For $PGA > 1.0\%g$: $\text{MMI} = 3.10 + 2.87 \log_{10}(PGA)$
-- Blended with $PGV$ for high-intensity damage regimes ($\text{MMI} \ge 5.0$).
+### 4. Instrumental MMI Conversion & Finite-Fault Rupture Geometry
+Ground motions are mapped to the Modified Mercalli Intensity scale via **Worden et al. (2012)** continuous piecewise bilinear regressions with $PGA$ in $\text{cm/s}^2$ ($Gal$) and $PGV$ in $\text{cm/s}$:
+
+- **For $PGA$:**
+  $$\text{MMI}_{PGA} = \begin{cases} 1.78 + 1.55 \log_{10}(PGA) & \log_{10}(PGA) \le 1.57 \\ -1.60 + 3.70 \log_{10}(PGA) & \log_{10}(PGA) > 1.57 \end{cases}$$
+- **For $PGV$:**
+  $$\text{MMI}_{PGV} = \begin{cases} 3.78 + 1.80 \log_{10}(PGV) & \log_{10}(PGV) \le 0.53 \\ 3.29 + 2.72 \log_{10}(PGV) & \log_{10}(PGV) > 0.53 \end{cases}$$
+- For low shaking ($\text{MMI} < 4.5$), $PGA$ governs; for high-damage regimes ($\text{MMI} \ge 4.5$), a smooth transition blends into $PGV$, which correlates more directly with structural collapse.
+
+#### Finite Fault Rupture Distance ($R_{jb}$)
+For major tectonic events ($M_w \ge 7.0$), point-source epicentral distance severely underestimates ground motion along extended fault lengths (e.g. Antakya lies ~145 km from the Pazarcık nucleation point, yet directly on the 350 km rupture line). `zemin-core` computes the exact Joyner-Boore distance:
+$$R_{jb} = \min_{s \in \text{FaultSegments}} \text{dist}_{\text{geodesic}}(\mathbf{x}, s)$$
+This ensures accurate $> 1.0g$ near-fault velocity pulses and destructive acceleration matching strong-motion station records.
 
 ---
 
@@ -227,3 +235,5 @@ Seismic calibration data and active fault structures referenced from:
 - General Directorate of Mineral Research and Exploration (MTA) Active Fault Maps
 - Disaster and Emergency Management Authority (AFAD) Strong Ground Motion Network
 - Akkar, S., Sandıkkaya, M. A., & Bommer, J. J. (2014). *Empirical ground-motion models for Europe and the Middle East.* Bull Earthquake Eng, 12(1), 359-387.
+- Worden, C. B., Gerstenberger, M. C., Rhoades, D. A., & Wald, D. J. (2012). *Probabilistic conversion of ground motion to Modified Mercalli Intensity.* Computer & Geosciences, 44, 46-54.
+- Grünthal, G. (1998). *European Macroseismic Scale 1998 (EMS-98).* Cahiers du Centre Européen de Géodynamique et de Séismologie, 15.
