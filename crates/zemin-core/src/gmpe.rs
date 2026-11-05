@@ -52,9 +52,19 @@ pub struct EarthquakeSource {
 
 impl EarthquakeSource {
     pub fn new(magnitude: f64, depth_km: f64, mechanism: FaultMechanism) -> Self {
+        let mag = if magnitude.is_finite() {
+            magnitude.clamp(1.0, 10.0)
+        } else {
+            6.0
+        };
+        let depth = if depth_km.is_finite() {
+            depth_km.max(0.0)
+        } else {
+            10.0
+        };
         Self {
-            magnitude,
-            depth_km,
+            magnitude: mag,
+            depth_km: depth,
             mechanism,
         }
     }
@@ -76,9 +86,12 @@ impl Default for SiteCondition {
 
 impl SiteCondition {
     pub fn new(vs30: f64) -> Self {
-        Self {
-            vs30: vs30.clamp(100.0, 2000.0),
-        }
+        let val = if vs30.is_finite() && vs30 > 0.0 {
+            vs30.clamp(100.0, 2000.0)
+        } else {
+            360.0
+        };
+        Self { vs30: val }
     }
 }
 
@@ -101,9 +114,21 @@ fn calculate_asb14(
     site: &SiteCondition,
     r_jb_km: f64,
 ) -> GroundMotionIntensity {
-    let mw = source.magnitude;
-    let r = r_jb_km.max(0.1);
-    let vs30 = site.vs30;
+    let mw = if source.magnitude.is_finite() {
+        source.magnitude.clamp(1.0, 10.0)
+    } else {
+        6.0
+    };
+    let r = if r_jb_km.is_finite() {
+        r_jb_km.max(0.0).max(0.1)
+    } else {
+        0.1
+    };
+    let vs30 = if site.vs30.is_finite() && site.vs30 > 0.0 {
+        site.vs30.clamp(50.0, 3000.0)
+    } else {
+        360.0
+    };
     let v_ref = 750.0; // Reference rock velocity (m/s)
 
     // ASB14 coefficients for PGA (in cm/s^2, converted to g)
@@ -137,14 +162,32 @@ fn calculate_asb14(
 
     // Total median ln(PGA in g)
     let ln_pga_g = f_mag + f_dist + f_fault + f_site;
-    let pga_g = ln_pga_g.exp().clamp(1e-5, 5.0);
+    let pga_g = if ln_pga_g.is_finite() {
+        ln_pga_g.exp().clamp(1e-5, 5.0)
+    } else {
+        1e-5
+    };
 
     // Empirical scaling for PGV (cm/s), SA(0.3s), SA(1.0s)
     let pga_cms2 = pga_g * 980.665;
-    let pgv_cms =
-        (pga_cms2 * 0.12 * (mw / 6.0).powf(1.8) / (vs30 / 400.0).sqrt()).clamp(1e-4, 300.0);
-    let sa_03s_g = (pga_g * 2.35 * (750.0 / vs30).powf(0.35)).clamp(1e-5, 8.0);
-    let sa_10s_g = (pga_g * 0.95 * (mw / 6.5) * (750.0 / vs30).powf(0.65)).clamp(1e-5, 5.0);
+    let pgv_term = pga_cms2 * 0.12 * (mw / 6.0).powf(1.8) / (vs30 / 400.0).sqrt();
+    let pgv_cms = if pgv_term.is_finite() {
+        pgv_term.clamp(1e-4, 300.0)
+    } else {
+        1e-4
+    };
+    let sa_03s_term = pga_g * 2.35 * (750.0 / vs30).powf(0.35);
+    let sa_03s_g = if sa_03s_term.is_finite() {
+        sa_03s_term.clamp(1e-5, 8.0)
+    } else {
+        1e-5
+    };
+    let sa_10s_term = pga_g * 0.95 * (mw / 6.5) * (750.0 / vs30).powf(0.65);
+    let sa_10s_g = if sa_10s_term.is_finite() {
+        sa_10s_term.clamp(1e-5, 5.0)
+    } else {
+        1e-5
+    };
 
     // Wald et al. (1999) / Worden et al. (2012) Instrumental MMI conversion
     let mmi = convert_pga_pgv_to_mmi(pga_g, pgv_cms);
@@ -166,21 +209,51 @@ fn calculate_point_source(
     site: &SiteCondition,
     r_jb_km: f64,
 ) -> GroundMotionIntensity {
-    let mw = source.magnitude;
-    let rhypo = (r_jb_km.powi(2) + source.depth_km.powi(2)).sqrt().max(1.0);
-    let vs30_amplification = (760.0 / site.vs30).powf(0.35);
+    let mw = if source.magnitude.is_finite() {
+        source.magnitude.clamp(1.0, 10.0)
+    } else {
+        6.0
+    };
+    let depth = if source.depth_km.is_finite() {
+        source.depth_km.max(0.0)
+    } else {
+        10.0
+    };
+    let r = if r_jb_km.is_finite() {
+        r_jb_km.max(0.0)
+    } else {
+        0.0
+    };
+    let rhypo = (r.powi(2) + depth.powi(2)).sqrt().max(1.0);
+    let vs30 = if site.vs30.is_finite() && site.vs30 > 0.0 {
+        site.vs30.clamp(50.0, 3000.0)
+    } else {
+        360.0
+    };
+    let vs30_amplification = (760.0 / vs30).powf(0.35);
 
     // Joyner-Boore point source approximation: ln(PGA) = c0 + c1*M - ln(R) - c2*R
     let ln_pga = -1.25 + 0.85 * mw - rhypo.ln() - 0.0045 * rhypo;
-    let pga_g = (ln_pga.exp() * vs30_amplification).clamp(1e-5, 4.0);
-    let pgv_cms = (pga_g * 110.0 * (mw / 6.0)).clamp(1e-4, 250.0);
+    let pga_g = if ln_pga.is_finite() {
+        (ln_pga.exp() * vs30_amplification).clamp(1e-5, 4.0)
+    } else {
+        1e-5
+    };
+    let pgv_term = pga_g * 110.0 * (mw / 6.0);
+    let pgv_cms = if pgv_term.is_finite() {
+        pgv_term.clamp(1e-4, 250.0)
+    } else {
+        1e-4
+    };
+    let sa_03s_g = (pga_g * 2.2).clamp(1e-5, 8.0);
+    let sa_10s_g = (pga_g * 0.8).clamp(1e-5, 5.0);
     let mmi = convert_pga_pgv_to_mmi(pga_g, pgv_cms);
 
     GroundMotionIntensity {
         pga_g,
         pgv_cms,
-        sa_03s_g: pga_g * 2.2,
-        sa_10s_g: pga_g * 0.8,
+        sa_03s_g,
+        sa_10s_g,
         mmi,
         sigma_ln: 0.70,
     }
@@ -190,15 +263,24 @@ fn calculate_point_source(
 /// Follows Worden et al. (2012) Shakemap standards.
 #[inline]
 pub fn convert_pga_pgv_to_mmi(pga_g: f64, pgv_cms: f64) -> f64 {
-    // Log10 of PGA in %g
-    let log_pga = (pga_g * 100.0).log10();
+    let safe_pga = if pga_g.is_finite() && pga_g > 0.0 {
+        pga_g.max(1e-6)
+    } else {
+        1e-6
+    };
+    let log_pga = (safe_pga * 100.0).log10();
     let mmi_pga = if log_pga <= 1.0 {
         1.78 + 1.55 * log_pga
     } else {
         3.10 + 2.87 * log_pga
     };
 
-    let log_pgv = pgv_cms.max(0.01).log10();
+    let safe_pgv = if pgv_cms.is_finite() && pgv_cms > 0.0 {
+        pgv_cms.max(1e-4)
+    } else {
+        1e-4
+    };
+    let log_pgv = safe_pgv.log10();
     let mmi_pgv = if log_pgv <= 0.5 {
         3.78 + 1.80 * log_pgv
     } else {
@@ -212,7 +294,11 @@ pub fn convert_pga_pgv_to_mmi(pga_g: f64, pgv_cms: f64) -> f64 {
         0.4 * mmi_pga + 0.6 * mmi_pgv
     };
 
-    mmi.clamp(1.0, 10.0)
+    if mmi.is_finite() {
+        mmi.clamp(1.0, 10.0)
+    } else {
+        1.0
+    }
 }
 
 #[cfg(test)]
@@ -255,5 +341,90 @@ mod tests {
             "Near motion must be substantially higher than at 150km"
         );
         assert!(near.mmi > far.mmi);
+    }
+
+    #[test]
+    fn test_extreme_scenario_mw95_zero_distance_soft_soil() {
+        // Extreme scenario: Mw 9.5 mega-thrust/great earthquake, 0 km distance, soft soil (100 m/s)
+        let source = EarthquakeSource::new(9.5, 0.0, FaultMechanism::Reverse);
+        let site = SiteCondition::new(100.0);
+
+        for model in [GmpeModel::AkkarBommer2014, GmpeModel::PointSourceExponential] {
+            let intensity = calculate_ground_motion(&source, &site, 0.0, model);
+
+            assert!(intensity.pga_g.is_finite(), "PGA must be finite");
+            assert!(intensity.pga_g > 0.0 && intensity.pga_g <= 5.0, "PGA in range");
+            assert!(intensity.pgv_cms.is_finite(), "PGV must be finite");
+            assert!(intensity.pgv_cms > 0.0 && intensity.pgv_cms <= 300.0, "PGV in range");
+            assert!(intensity.sa_03s_g.is_finite(), "SA 0.3s must be finite");
+            assert!(intensity.sa_10s_g.is_finite(), "SA 1.0s must be finite");
+            assert!(intensity.mmi.is_finite(), "MMI must be finite");
+            assert!((1.0..=10.0).contains(&intensity.mmi), "MMI must be within [1, 10]");
+        }
+    }
+
+    #[test]
+    fn test_boundary_conditions_zero_and_nan() {
+        // Test direct struct instantiation with degenerate/extreme values
+        let source_degenerate = EarthquakeSource {
+            magnitude: f64::NAN,
+            depth_km: -10.0,
+            mechanism: FaultMechanism::StrikeSlip,
+        };
+        let site_zero = SiteCondition { vs30: 0.0 };
+        let site_neg = SiteCondition { vs30: -500.0 };
+        let site_nan = SiteCondition { vs30: f64::NAN };
+
+        for site in [site_zero, site_neg, site_nan] {
+            let res = calculate_ground_motion(&source_degenerate, &site, -5.0, GmpeModel::AkkarBommer2014);
+            assert!(res.pga_g.is_finite());
+            assert!(res.pgv_cms.is_finite());
+            assert!(res.mmi.is_finite());
+            assert!(res.pga_g > 0.0);
+            assert!(res.pgv_cms > 0.0);
+        }
+    }
+
+    #[test]
+    fn test_mmi_conversion_extremes() {
+        assert_eq!(convert_pga_pgv_to_mmi(0.0, 0.0), 1.0);
+        assert_eq!(convert_pga_pgv_to_mmi(-1.0, -1.0), 1.0);
+        assert_eq!(convert_pga_pgv_to_mmi(f64::NAN, f64::NAN), 1.0);
+        assert_eq!(convert_pga_pgv_to_mmi(10.0, 500.0), 10.0);
+    }
+
+    #[test]
+    fn test_property_based_parameter_sweep() {
+        let mechanisms = [FaultMechanism::StrikeSlip, FaultMechanism::Normal, FaultMechanism::Reverse];
+        let models = [GmpeModel::AkkarBommer2014, GmpeModel::PointSourceExponential];
+
+        let mags = [1.0, 5.0, 7.0, 7.8, 9.5];
+        let depths = [0.0, 5.0, 15.0, 50.0];
+        let distances = [0.0, 0.5, 10.0, 100.0, 500.0];
+        let vs30s = [100.0, 360.0, 760.0, 1500.0];
+
+        for &mw in &mags {
+            for &depth in &depths {
+                for &mech in &mechanisms {
+                    let source = EarthquakeSource::new(mw, depth, mech);
+                    for &vs30 in &vs30s {
+                        let site = SiteCondition::new(vs30);
+                        for &r in &distances {
+                            for &model in &models {
+                                let res = calculate_ground_motion(&source, &site, r, model);
+                                assert!(res.pga_g.is_finite(), "PGA must be finite for Mw={mw}, r={r}, vs30={vs30}");
+                                assert!(res.pgv_cms.is_finite(), "PGV must be finite for Mw={mw}, r={r}, vs30={vs30}");
+                                assert!(res.sa_03s_g.is_finite());
+                                assert!(res.sa_10s_g.is_finite());
+                                assert!(res.mmi.is_finite());
+                                assert!(res.pga_g > 0.0 && res.pga_g <= 5.0);
+                                assert!(res.pgv_cms > 0.0 && res.pgv_cms <= 300.0);
+                                assert!((1.0..=10.0).contains(&res.mmi));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

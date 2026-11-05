@@ -182,6 +182,32 @@ uv run python -m zemin.cli assess --pga 0.75 --count 50 --output antakya_damage.
 
 ---
 
+## 🌐 Interactive Web GIS Dashboard
+
+ZeminRisk includes a high-performance Web GIS Digital Twin dashboard built with **React 18**, **MapLibre GL v4+**, and **TypeScript**, styled with a dark tactical theme and neon hazard telemetry:
+
+```bash
+# Install frontend dependencies
+cd frontend && npm install
+
+# Start development server (port 3000)
+npm run dev
+
+# Build production bundle
+npm run build
+```
+
+### Dashboard Features:
+- **3D Building Footprints:** Extruded building stock with height calculations and color-coded damage classifications according to EMS-98 (`D1_Slight`, `D2_Moderate`, `D3_Extensive`, `D4_Collapse`). Interactive inspection popups with casualty and collapse probabilities.
+- **ShakeMap Ground Motion Layer:** Real-time PGA and Mercalli Intensity (MMI) points generated via ASB14 attenuation models.
+- **InSAR Coherence Loss:** Sentinel-1 Damage Proxy Map (DPM) decorrelation grid showing urban and alluvial structural displacement.
+- **Emergency Reachability Isochrones:** 5-minute, 10-minute, and 15-minute emergency response polygons computed under post-earthquake debris blockage.
+- **Historical Scenario Replay:** One-click replay of the 6 Feb 2023 Pazarcık ($M_w 7.8$) and Elbistan ($M_w 7.6$) earthquakes, plus a custom seismic parameter simulation engine.
+- **Live Telemetry & Metrics:** Live tracking of Max PGA ($g$), Mercalli Intensity (MMI), Collapsed Buildings ratio, Coburn & Spence estimated casualties, and InSAR severe decorrelation percentages.
+- **Graceful Fallback:** Automatically communicates with the FastAPI service (`localhost:8000`) and falls back to a deterministic high-precision calibrated twin engine when offline.
+
+---
+
 ## 🗺 Roadmap
 
 - [x] **M1 (v0.1.0):** Native Rust GMPE engine (`zemin-core`), geodetic rasterizer, and parallel real-time simulator (`zemin-rt`).
@@ -189,7 +215,7 @@ uv run python -m zemin.cli assess --pga 0.75 --count 50 --output antakya_damage.
 - [x] **M3 (v0.2.0):** Sentinel-1 InSAR Coherence Change Detection (CCD), Line-of-Sight displacement, and Cloud-Optimized GeoTIFF export (`zemin.insar`).
 - [x] **M4 (v0.3.0):** EMS-98 / GEM building fragility curves, casualty estimation, and multi-modal InSAR + ground motion fusion (`zemin.damage`).
 - [x] **M5 (v0.4.0):** Disaster network routing under debris blockage, reachability isochrones, and p-Median facility location-allocation (`zemin.routing`).
-- [ ] **M6 (v1.0.0):** WebGL 3D Digital Twin UI (MapLibre + deck.gl + DuckDB-WASM).
+- [x] **M6 (v1.0.0):** WebGL 3D Digital Twin UI (MapLibre GL v4 + React 18 + Vite).
 
 ---
 

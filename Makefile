@@ -1,4 +1,4 @@
-.PHONY: all test rust-test py-test build up down sim clean fmt
+.PHONY: all test rust-test py-test build up down sim clean fmt frontend-install frontend-dev frontend-build
 
 all: test build
 
@@ -17,6 +17,15 @@ test: rust-test py-test
 
 build:
 	cargo build --release
+
+frontend-install:
+	cd frontend && npm install
+
+frontend-dev:
+	cd frontend && npm run dev
+
+frontend-build:
+	cd frontend && npm run build
 
 up:
 	docker compose up -d

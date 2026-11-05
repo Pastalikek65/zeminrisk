@@ -60,3 +60,56 @@ def test_p_median_location_allocation() -> None:
     assert 10 in chosen_ids
     assert 20 in chosen_ids
     assert 30 not in chosen_ids
+
+
+def test_shortest_path_disconnected_components() -> None:
+    graph = DisasterRoadGraph()
+    # Component 1
+    graph.add_node(0, 36.20, 36.16)
+    graph.add_node(1, 36.21, 36.16)
+    graph.add_edge(0, 1, length_m=1000.0)
+
+    # Component 2 (completely disconnected)
+    graph.add_node(10, 36.50, 36.50)
+    graph.add_node(11, 36.51, 36.50)
+    graph.add_edge(10, 11, length_m=1000.0)
+
+    # Disconnected search must return empty path and infinite distance without raising
+    path, dist = graph.shortest_path(0, 10)
+    assert path == []
+    assert dist == float("inf")
+
+    # Isolated node with no edges
+    graph.add_node(99, 36.60, 36.60)
+    path_iso, dist_iso = graph.shortest_path(99, 0)
+    assert path_iso == []
+    assert dist_iso == float("inf")
+
+    # Non-existent nodes
+    path_none, dist_none = graph.shortest_path(999, 0)
+    assert path_none == []
+    assert dist_none == float("inf")
+
+    path_none2, dist_none2 = graph.shortest_path(0, 999)
+    assert path_none2 == []
+    assert dist_none2 == float("inf")
+
+    # Origin == Destination
+    path_same, dist_same = graph.shortest_path(0, 0)
+    assert path_same == [0]
+    assert dist_same == 0.0
+
+
+def test_p_median_empty_cases() -> None:
+    candidates = [FacilityCandidate(id=1, lat=36.20, lon=36.15)]
+    # Empty demand
+    chosen, cost = solve_p_median_facility_location([], candidates, p=1)
+    assert len(chosen) == 1
+    assert cost == 0.0
+
+    # Empty candidates
+    chosen_empty, cost_empty = solve_p_median_facility_location([], [], p=1)
+    assert chosen_empty == []
+    assert cost_empty == 0.0
+
+

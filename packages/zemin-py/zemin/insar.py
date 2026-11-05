@@ -101,8 +101,14 @@ def compute_coherence_loss(
     if coherence_pre.shape != coherence_co.shape:
         raise ValueError("Coherence arrays must have matching shapes")
 
-    # Valid mask: areas that had stable coherence prior to the event
-    valid_mask = coherence_pre >= min_pre_coherence
+    # Valid mask: areas that had stable, finite, strictly positive coherence prior to the event
+    # and finite co-seismic coherence
+    valid_mask = (
+        np.isfinite(coherence_pre)
+        & np.isfinite(coherence_co)
+        & (coherence_pre >= min_pre_coherence)
+        & (coherence_pre > 0.0)
+    )
 
     # Relative Coherence Loss: Delta_gamma / gamma_pre
     # Higher loss indicates surface disruption / building collapse
@@ -110,7 +116,10 @@ def compute_coherence_loss(
     dpm = np.zeros_like(coherence_pre, dtype=np.float32)
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        dpm[valid_mask] = np.clip(delta_gamma[valid_mask] / coherence_pre[valid_mask], 0.0, 1.0)
+        loss = delta_gamma[valid_mask] / coherence_pre[valid_mask]
+        dpm[valid_mask] = np.nan_to_num(np.clip(loss, 0.0, 1.0), nan=0.0)
+
+    dpm = np.nan_to_num(dpm, nan=0.0)
 
     severe_pixels = np.count_nonzero((dpm >= threshold) & valid_mask)
     total_valid = np.count_nonzero(valid_mask)

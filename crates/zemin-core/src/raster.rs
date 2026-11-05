@@ -45,18 +45,32 @@ impl ShakeMapRaster {
         default_vs30: f64,
         model: GmpeModel,
     ) -> Self {
-        let total_points = nrows * ncols;
+        let total_points = nrows.saturating_mul(ncols);
+        if total_points == 0 {
+            return Self {
+                bbox: *bbox,
+                nrows,
+                ncols,
+                pga: Vec::new(),
+                pgv: Vec::new(),
+                mmi: Vec::new(),
+                stats: ShakeMapStats {
+                    max_pga_g: 0.0,
+                    max_pgv_cms: 0.0,
+                    max_mmi: 0.0,
+                    area_mmi_gte_7_km2: 0.0,
+                    total_points: 0,
+                },
+            };
+        }
+
         let coords = bbox.generate_grid(nrows, ncols);
 
         // Approximate cell area in km^2
         let lat_dist = (bbox.max_lat - bbox.min_lat) * 111.0;
         let avg_lat = ((bbox.min_lat + bbox.max_lat) / 2.0).to_radians();
         let lon_dist = (bbox.max_lon - bbox.min_lon) * 111.0 * avg_lat.cos();
-        let cell_area_km2 = if total_points > 0 {
-            (lat_dist * lon_dist) / (total_points as f64)
-        } else {
-            0.0
-        };
+        let cell_area_km2 = (lat_dist * lon_dist) / (total_points as f64);
 
         let site = SiteCondition::new(default_vs30);
 
@@ -119,13 +133,36 @@ impl ShakeMapRaster {
     /// Exports MMI contour points above given threshold as GeoJSON FeatureCollection
     pub fn to_geojson_features(&self, min_mmi: f32) -> serde_json::Value {
         let mut features = Vec::new();
-        let lat_step = (self.bbox.max_lat - self.bbox.min_lat) / (self.nrows.max(2) - 1) as f64;
-        let lon_step = (self.bbox.max_lon - self.bbox.min_lon) / (self.ncols.max(2) - 1) as f64;
+        if self.nrows == 0 || self.ncols == 0 || self.mmi.is_empty() {
+            return serde_json::json!({
+                "type": "FeatureCollection",
+                "metadata": {
+                    "max_pga_g": self.stats.max_pga_g,
+                    "max_mmi": self.stats.max_mmi,
+                    "area_mmi_gte_7_km2": self.stats.area_mmi_gte_7_km2
+                },
+                "features": features
+            });
+        }
+
+        let lat_step = if self.nrows > 1 {
+            (self.bbox.max_lat - self.bbox.min_lat) / (self.nrows - 1) as f64
+        } else {
+            0.0
+        };
+        let lon_step = if self.ncols > 1 {
+            (self.bbox.max_lon - self.bbox.min_lon) / (self.ncols - 1) as f64
+        } else {
+            0.0
+        };
 
         for r in 0..self.nrows {
             let lat = self.bbox.min_lat + (r as f64) * lat_step;
             for c in 0..self.ncols {
                 let idx = r * self.ncols + c;
+                if idx >= self.mmi.len() || idx >= self.pga.len() || idx >= self.pgv.len() {
+                    break;
+                }
                 let mmi_val = self.mmi[idx];
                 if mmi_val >= min_mmi {
                     let lon = self.bbox.min_lon + (c as f64) * lon_step;
@@ -188,7 +225,72 @@ mod tests {
 
         // Test GeoJSON generation
         let geojson = raster.to_geojson_features(7.0);
-        let features = geojson["features"].as_array().unwrap();
+        let features = geojson["features"].as_array().expect("features array");
         assert!(!features.is_empty(), "Should have points with MMI >= 7.0");
+    }
+
+    #[test]
+    fn test_shakemap_raster_zero_and_single_grid() {
+        let epicenter = GeoCoord::new(37.0, 37.0);
+        let source = EarthquakeSource::new(7.0, 10.0, FaultMechanism::StrikeSlip);
+        let bbox = BoundingBox::new(36.0, 38.0, 36.0, 38.0);
+
+        // Zero grid
+        let empty_raster = ShakeMapRaster::compute(
+            &source,
+            &epicenter,
+            &bbox,
+            0,
+            0,
+            360.0,
+            GmpeModel::AkkarBommer2014,
+        );
+        assert_eq!(empty_raster.pga.len(), 0);
+        assert_eq!(empty_raster.stats.total_points, 0);
+        let empty_geojson = empty_raster.to_geojson_features(5.0);
+        assert_eq!(empty_geojson["features"].as_array().unwrap().len(), 0);
+
+        // Single grid point
+        let single_raster = ShakeMapRaster::compute(
+            &source,
+            &epicenter,
+            &bbox,
+            1,
+            1,
+            360.0,
+            GmpeModel::AkkarBommer2014,
+        );
+        assert_eq!(single_raster.pga.len(), 1);
+        assert_eq!(single_raster.stats.total_points, 1);
+        assert!(single_raster.stats.max_pga_g > 0.0);
+    }
+
+    #[test]
+    fn test_shakemap_raster_extreme_scenario_mw95() {
+        let epicenter = GeoCoord::new(37.0, 37.0);
+        let source = EarthquakeSource::new(9.5, 0.0, FaultMechanism::Reverse);
+        let bbox = BoundingBox::new(36.8, 37.2, 36.8, 37.2);
+
+        let raster = ShakeMapRaster::compute(
+            &source,
+            &epicenter,
+            &bbox,
+            10,
+            10,
+            100.0, // Very soft soil
+            GmpeModel::AkkarBommer2014,
+        );
+
+        assert_eq!(raster.stats.total_points, 100);
+        assert!(raster.stats.max_pga_g <= 5.0);
+        assert!(raster.stats.max_pga_g > 0.0);
+        assert!(raster.stats.max_mmi <= 10.0);
+        assert!(raster.stats.max_mmi >= 1.0);
+        for &val in &raster.pga {
+            assert!(val.is_finite());
+        }
+        for &val in &raster.mmi {
+            assert!(val.is_finite());
+        }
     }
 }

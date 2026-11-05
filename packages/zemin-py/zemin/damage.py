@@ -72,12 +72,19 @@ def lognormal_cdf(
     beta: float,
 ) -> npt.NDArray[np.float64]:
     """Vectorized lognormal cumulative distribution function: Phi((ln(IM) - ln(theta)) / beta)."""
-    im_safe = np.maximum(im, 1e-4)
+    im_arr = np.asarray(im, dtype=np.float64)
+    result = np.zeros_like(im_arr, dtype=np.float64)
+    positive_mask = (im_arr > 0.0) & np.isfinite(im_arr)
+    if not np.any(positive_mask):
+        return result
+
+    im_pos = im_arr[positive_mask]
+    im_safe = np.maximum(im_pos, 1e-6)
     x = (np.log(im_safe) - math.log(theta)) / beta
     # Approximation of erf for vectorization: 0.5 * (1 + erf(x / sqrt(2)))
     # scipy.special.erf equivalent using math or vectorized expansion
     erf_vec = np.vectorize(math.erf)
-    result: npt.NDArray[np.float64] = np.clip(
+    result[positive_mask] = np.clip(
         0.5 * (1.0 + erf_vec(x / math.sqrt(2.0))), 0.0, 1.0
     ).astype(np.float64)
     return result
@@ -126,8 +133,8 @@ def assess_building_stock_damage(
     gdf = buildings.copy()
     n = len(gdf)
 
-    if isinstance(pga_g, float):
-        pga_arr = np.full(n, pga_g, dtype=np.float64)
+    if isinstance(pga_g, (int, float)):
+        pga_arr = np.full(n, float(pga_g), dtype=np.float64)
     else:
         pga_arr = np.asarray(pga_g, dtype=np.float64)
 
@@ -144,14 +151,15 @@ def assess_building_stock_damage(
     p_extensive = np.zeros(n, dtype=np.float64)
     expected_ds = np.zeros(n, dtype=np.float64)
 
-    for typo in BuildingTypology:
-        mask = gdf["typology"] == typo.value
-        if np.any(mask):
-            sub_pga = pga_arr[mask]
-            probs = evaluate_fragility_state_probabilities(sub_pga, typo)
-            p_collapse[mask] = probs["p_collapse"]
-            p_extensive[mask] = probs["p_extensive"]
-            expected_ds[mask] = probs["expected_damage_state"]
+    if n > 0:
+        for typo in BuildingTypology:
+            mask = gdf["typology"] == typo.value
+            if np.any(mask):
+                sub_pga = pga_arr[mask]
+                probs = evaluate_fragility_state_probabilities(sub_pga, typo)
+                p_collapse[mask] = probs["p_collapse"]
+                p_extensive[mask] = probs["p_extensive"]
+                expected_ds[mask] = probs["expected_damage_state"]
 
     gdf["pga_g"] = np.round(pga_arr, 4)
     gdf["p_collapse"] = np.round(p_collapse, 4)
@@ -160,7 +168,7 @@ def assess_building_stock_damage(
 
     # Multi-modal fusion with InSAR DPM if provided
     # Posterior P(Severe | PGA, DPM) = alpha * P_pga + (1 - alpha) * DPM
-    if dpm_values is not None and len(dpm_values) == n:
+    if dpm_values is not None and len(dpm_values) == n and n > 0:
         gdf["dpm_coherence_loss"] = np.round(dpm_values, 3)
         fused_prob = 0.55 * p_collapse + 0.45 * dpm_values
         gdf["fused_damage_prob"] = np.round(np.clip(fused_prob, 0.0, 1.0), 4)
@@ -170,19 +178,34 @@ def assess_building_stock_damage(
     # Coburn & Spence (1992) casualty model:
     # Fatalities = Occupants * P(Collapse) * Indoor_trapped_rate (0.5) * Lethality_rate (0.2)
     lethality_rate = 0.10
-    occupants = gdf["occupancy"].to_numpy(dtype=np.float64)
+    occupants = (
+        gdf["occupancy"].to_numpy(dtype=np.float64)
+        if n > 0
+        else np.zeros(0, dtype=np.float64)
+    )
     gdf["estimated_fatalities"] = np.round(occupants * p_collapse * lethality_rate, 1)
 
     # Discrete classification
-    gdf["damage_grade"] = np.where(
-        gdf["p_collapse"] >= 0.50,
-        "D4_Collapse",
-        np.where(
-            gdf["p_extensive"] >= 0.40,
-            "D3_Extensive",
-            np.where(gdf["expected_ds"] >= 1.5, "D2_Moderate", "D1_Slight"),
-        ),
-    )
+    if n == 0:
+        gdf["damage_grade"] = np.array([], dtype=object)
+    else:
+        gdf["damage_grade"] = np.where(
+            gdf["p_collapse"] >= 0.50,
+            "D4_Collapse",
+            np.where(
+                gdf["p_extensive"] >= 0.40,
+                "D3_Extensive",
+                np.where(
+                    gdf["expected_ds"] >= 1.5,
+                    "D2_Moderate",
+                    np.where(
+                        gdf["expected_ds"] >= 0.5,
+                        "D1_Slight",
+                        "D0_None",
+                    ),
+                ),
+            ),
+        )
 
     return gdf
 
@@ -195,6 +218,16 @@ def generate_sample_antakya_buildings(
     seed: int = 42,
 ) -> gpd.GeoDataFrame:
     """Generate a sample synthetic building stock GeoDataFrame for Antakya center."""
+    if count <= 0:
+        return gpd.GeoDataFrame(
+            {
+                "building_id": [],
+                "typology": [],
+                "occupancy": [],
+                "geometry": [],
+            },
+            crs="EPSG:4326",
+        )
     rng = np.random.default_rng(seed)
     polygons = []
     typologies = []

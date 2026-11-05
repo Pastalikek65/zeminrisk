@@ -78,6 +78,12 @@ class DisasterRoadGraph:
 
     def shortest_path(self, origin: int, destination: int) -> tuple[list[int], float]:
         """Compute least-risk shortest path using Dijkstra algorithm."""
+        if origin not in self.nodes or destination not in self.nodes:
+            return [], float("inf")
+
+        if origin == destination:
+            return [origin], 0.0
+
         dist: dict[int, float] = {node: float("inf") for node in self.nodes}
         parent: dict[int, int | None] = {node: None for node in self.nodes}
         dist[origin] = 0.0
@@ -94,6 +100,8 @@ class DisasterRoadGraph:
             for edge in self.adj[u]:
                 cost = edge.effective_travel_time_sec
                 if cost == float("inf"):
+                    continue
+                if edge.v not in dist:
                     continue
                 if dist[u] + cost < dist[edge.v]:
                     dist[edge.v] = dist[u] + cost
@@ -113,6 +121,9 @@ class DisasterRoadGraph:
 
     def compute_isochrone_nodes(self, origin: int, max_time_sec: float) -> dict[int, float]:
         """Returns all nodes reachable within max_time_sec from origin with their travel times."""
+        if origin not in self.nodes:
+            return {}
+
         dist: dict[int, float] = {node: float("inf") for node in self.nodes}
         dist[origin] = 0.0
         pq: list[tuple[float, int]] = [(0.0, origin)]
@@ -129,6 +140,8 @@ class DisasterRoadGraph:
             for edge in self.adj[u]:
                 cost = edge.effective_travel_time_sec
                 if cost == float("inf"):
+                    continue
+                if edge.v not in dist:
                     continue
                 nxt_d = dist[u] + cost
                 if nxt_d <= max_time_sec and nxt_d < dist[edge.v]:
@@ -187,6 +200,12 @@ def solve_p_median_facility_location(
     Selects p candidate locations that minimize total demand-weighted distance.
     Guarantees monotonic improvement and rapid convergence.
     """
+    if not candidates or p <= 0:
+        return [], 0.0
+
+    if not demand:
+        return candidates[: min(p, len(candidates))], 0.0
+
     if p >= len(candidates):
         return candidates, 0.0
 

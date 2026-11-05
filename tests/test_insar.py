@@ -54,3 +54,36 @@ def test_simulate_insar_damage_proxy() -> None:
     assert result.dpm.shape == (30, 30)
     assert 0.0 <= result.severe_damage_ratio <= 1.0
     assert result.resolution_deg > 0.0
+
+
+def test_coherence_loss_all_nan_or_zero() -> None:
+    # All NaN coherence arrays
+    arr_nan = np.full((10, 10), np.nan, dtype=np.float32)
+    dpm_nan, ratio_nan = compute_coherence_loss(arr_nan, arr_nan)
+    assert not np.isnan(dpm_nan).any()
+    assert np.all(dpm_nan == 0.0)
+    assert ratio_nan == 0.0
+
+    # All Zero coherence arrays
+    arr_zero = np.zeros((10, 10), dtype=np.float32)
+    dpm_zero, ratio_zero = compute_coherence_loss(arr_zero, arr_zero)
+    assert not np.isnan(dpm_zero).any()
+    assert np.all(dpm_zero == 0.0)
+    assert ratio_zero == 0.0
+
+    # All Zero with min_pre_coherence = 0.0
+    dpm_zero_min0, ratio_zero_min0 = compute_coherence_loss(
+        arr_zero, arr_zero, min_pre_coherence=0.0
+    )
+    assert not np.isnan(dpm_zero_min0).any()
+    assert np.all(dpm_zero_min0 == 0.0)
+    assert ratio_zero_min0 == 0.0
+
+    # Mixed NaNs (pre valid, co-seismic is NaN)
+    pre_valid = np.full((10, 10), 0.8, dtype=np.float32)
+    dpm_mixed, ratio_mixed = compute_coherence_loss(pre_valid, arr_nan)
+    assert not np.isnan(dpm_mixed).any()
+    assert np.all(dpm_mixed == 0.0)
+    assert ratio_mixed == 0.0
+
+
