@@ -7,7 +7,7 @@ name = "zemin"
 version = "0.1.0"
 description = "Python bindings and pipeline orchestration for ZeminRisk"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11, <3.13"
 dependencies = [
     "pydantic>=2.7.0",
     "fastapi>=0.111.0",

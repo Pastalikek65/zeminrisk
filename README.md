@@ -162,8 +162,9 @@ uv run python -m zemin.cli serve --port 8000
 ```
 Open interactive Swagger/OpenAPI docs at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-### 4. CLI ShakeMap Generation
+### 4. CLI ShakeMap, InSAR & Damage Assessment
 ```bash
+# Generate calibrated ShakeMap
 uv run python -m zemin.cli simulate \
   --mag 7.8 \
   --lat 37.174 \
@@ -171,6 +172,12 @@ uv run python -m zemin.cli simulate \
   --depth 10.0 \
   --resolution 80 \
   --output pazarcik_shakemap.geojson
+
+# Run InSAR Coherence Change Detection (CCD) Damage Proxy Map
+uv run python -m zemin.cli insar --mag 7.8 --cog dpm_antakya.tif
+
+# Assess building stock collapse risk and fatalities (Antakya sample)
+uv run python -m zemin.cli assess --pga 0.75 --count 50 --output antakya_damage.geojson
 ```
 
 ---
@@ -179,9 +186,9 @@ uv run python -m zemin.cli simulate \
 
 - [x] **M1 (v0.1.0):** Native Rust GMPE engine (`zemin-core`), geodetic rasterizer, and parallel real-time simulator (`zemin-rt`).
 - [x] **M2 (v0.1.0):** PostGIS schema initialization, Docker Compose orchestration, and FastAPI OGC endpoint.
-- [ ] **M3 (v0.2.0):** InSAR deformation time-series ingestion (Sentinel-1 interferograms via MintPy).
-- [ ] **M4 (v0.3.0):** PyTorch/TorchGeo Foundation Model fine-tuning (Prithvi / Clay) for post-disaster building damage segmentation.
-- [ ] **M5 (v0.4.0):** Stochastic Contraction Hierarchies (CH) for emergency routing and MILP hospital allocation.
+- [x] **M3 (v0.2.0):** Sentinel-1 InSAR Coherence Change Detection (CCD), Line-of-Sight displacement, and Cloud-Optimized GeoTIFF export (`zemin.insar`).
+- [x] **M4 (v0.3.0):** EMS-98 / GEM building fragility curves, casualty estimation, and multi-modal InSAR + ground motion fusion (`zemin.damage`).
+- [x] **M5 (v0.4.0):** Disaster network routing under debris blockage, reachability isochrones, and p-Median facility location-allocation (`zemin.routing`).
 - [ ] **M6 (v1.0.0):** WebGL 3D Digital Twin UI (MapLibre + deck.gl + DuckDB-WASM).
 
 ---

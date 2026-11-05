@@ -73,6 +73,51 @@ def main() -> None:
         else:
             print(f"GeoJSON Preview: {len(res.geojson['features'])} features generated.")
 
+    # assess command
+    assess_parser = subparsers.add_parser(
+        "assess", help="Assess building stock damage and fatalities"
+    )
+    assess_parser.add_argument("--pga", type=float, default=0.65, help="PGA in g (default: 0.65)")
+    assess_parser.add_argument(
+        "--count", type=int, default=50, help="Number of sample buildings (default: 50)"
+    )
+    assess_parser.add_argument("--output", type=str, help="Output GeoJSON path")
+
+    # insar command
+    insar_parser = subparsers.add_parser("insar", help="Simulate InSAR Damage Proxy Map (DPM)")
+    insar_parser.add_argument("--mag", type=float, default=7.8, help="Magnitude")
+    insar_parser.add_argument("--cog", type=str, help="Export result as GeoTIFF / COG")
+
+    if args.command == "assess":
+        from zemin.damage import assess_building_stock_damage, generate_sample_antakya_buildings
+
+        blds = generate_sample_antakya_buildings(count=args.count)
+        res = assess_building_stock_damage(blds, pga_g=args.pga)
+        collapsed = (res["damage_grade"] == "D4_Collapse").sum()
+        fatalities = res["estimated_fatalities"].sum()
+        print("🏢 Building Damage Assessment Complete:")
+        print(f"   Evaluated: {len(res)} buildings")
+        print(f"   Collapsed (D4): {collapsed} ({collapsed / len(res) * 100:.1f}%)")
+        print(f"   Estimated Fatalities: {fatalities:.1f}")
+
+        if args.output:
+            res.to_file(args.output, driver="GeoJSON")
+            print(f"💾 Saved assessed footprints to {args.output}")
+
+    elif args.command == "insar":
+        from zemin.insar import simulate_insar_damage_proxy, write_cog
+
+        bounds = (35.9, 35.9, 36.4, 36.4)
+        epicenter = (36.160, 36.202)
+        dpm_res = simulate_insar_damage_proxy(bounds, epicenter, magnitude=args.mag)
+        print("🛰️ InSAR Damage Proxy Map (DPM) Generated:")
+        print(f"   Severe Damage Ratio: {dpm_res.severe_damage_ratio * 100:.2f}%")
+        print(f"   Mean Coherence Loss: {float(dpm_res.dpm.mean()):.3f}")
+
+        if args.cog:
+            write_cog(args.cog, dpm_res.dpm, dpm_res.bounds)
+            print(f"💾 Exported Cloud-Optimized GeoTIFF to {args.cog}")
+
 
 if __name__ == "__main__":
     main()

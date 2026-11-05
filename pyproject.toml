@@ -3,7 +3,7 @@ name = "zeminrisk-workspace"
 version = "0.1.0"
 description = "High-performance seismic risk, real-time ShakeMap, and GeoAI disaster response platform"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11, <3.13"
 license = { text = "Apache-2.0" }
 dependencies = [
     "pydantic>=2.7.0",
@@ -41,6 +41,18 @@ python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "geopandas",
+    "shapely",
+    "shapely.*",
+    "rasterio",
+    "rasterio.*",
+    "pystac_client",
+    "pystac_client.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages"]

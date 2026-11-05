@@ -145,3 +145,102 @@ async def simulate_shakemap(req: EarthquakeEventRequest) -> ShakeMapResponse:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class InSARDpmRequest(BaseModel):
+    min_lon: float = Field(default=35.9)
+    min_lat: float = Field(default=35.9)
+    max_lon: float = Field(default=36.4)
+    max_lat: float = Field(default=36.4)
+    epicenter_lon: float = Field(default=36.160)
+    epicenter_lat: float = Field(default=36.202)
+    magnitude: float = Field(default=7.8, ge=3.0, le=9.5)
+    resolution: int = Field(default=40, ge=10, le=100)
+
+
+@app.post("/api/v1/insar/simulate-dpm")
+async def simulate_insar_endpoint(req: InSARDpmRequest) -> dict[str, Any]:
+    """Generate simulated InSAR Coherence Loss & Damage Proxy Map."""
+    from zemin.insar import simulate_insar_damage_proxy
+
+    bounds = (req.min_lon, req.min_lat, req.max_lon, req.max_lat)
+    epicenter = (req.epicenter_lon, req.epicenter_lat)
+    res = simulate_insar_damage_proxy(
+        bounds=bounds,
+        epicenter=epicenter,
+        magnitude=req.magnitude,
+        nrows=req.resolution,
+        ncols=req.resolution,
+    )
+    return {
+        "status": "success",
+        "severe_damage_ratio": round(res.severe_damage_ratio, 4),
+        "resolution_deg": round(res.resolution_deg, 6),
+        "mean_dpm": round(float(res.dpm.mean()), 4),
+        "max_dpm": round(float(res.dpm.max()), 4),
+        "bounds": list(res.bounds),
+    }
+
+
+class DamageAssessmentRequest(BaseModel):
+    pga_g: float = Field(default=0.65, ge=0.01, le=3.0)
+    building_count: int = Field(default=30, ge=5, le=500)
+
+
+@app.post("/api/v1/damage/sample-antakya")
+async def assess_sample_buildings_endpoint(
+    req: DamageAssessmentRequest,
+) -> dict[str, Any]:
+    """Run building damage assessment on sample Antakya building stock."""
+    import json
+
+    from zemin.damage import assess_building_stock_damage, generate_sample_antakya_buildings
+
+    blds = generate_sample_antakya_buildings(count=req.building_count)
+    assessed = assess_building_stock_damage(blds, pga_g=req.pga_g)
+
+    geojson_str = assessed.to_json()
+    geojson_data = json.loads(geojson_str)
+
+    total_fatalities = float(assessed["estimated_fatalities"].sum())
+    collapsed_count = int((assessed["damage_grade"] == "D4_Collapse").sum())
+
+    return {
+        "status": "success",
+        "summary": {
+            "total_buildings": len(assessed),
+            "collapsed_buildings": collapsed_count,
+            "estimated_fatalities": round(total_fatalities, 1),
+            "pga_input_g": req.pga_g,
+        },
+        "geojson": geojson_data,
+    }
+
+
+class IsochroneRequest(BaseModel):
+    center_lon: float = Field(default=36.160)
+    center_lat: float = Field(default=36.202)
+    cutoff_minutes: float = Field(default=10.0, ge=1.0, le=60.0)
+
+
+@app.post("/api/v1/routing/isochrone")
+async def compute_isochrone_endpoint(req: IsochroneRequest) -> dict[str, Any]:
+    """Compute reachability isochrone under earthquake damage and debris blockage."""
+    from shapely.geometry import mapping
+
+    from zemin.routing import create_sample_antakya_road_grid, generate_isochrone_polygon
+
+    grid = create_sample_antakya_road_grid(
+        center_lon=req.center_lon, center_lat=req.center_lat, grid_n=5
+    )
+    center_node = 12  # Middle of 5x5 grid
+    poly = generate_isochrone_polygon(grid, center_node, req.cutoff_minutes)
+
+    if poly is None:
+        raise HTTPException(status_code=400, detail="Could not form polygon from reachable nodes")
+
+    return {
+        "status": "success",
+        "cutoff_minutes": req.cutoff_minutes,
+        "isochrone_geojson": mapping(poly),
+    }
