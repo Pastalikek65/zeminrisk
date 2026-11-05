@@ -29,6 +29,9 @@ dev = [
     "hypothesis>=6.103.0",
 ]
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

@@ -349,17 +349,29 @@ mod tests {
         let source = EarthquakeSource::new(9.5, 0.0, FaultMechanism::Reverse);
         let site = SiteCondition::new(100.0);
 
-        for model in [GmpeModel::AkkarBommer2014, GmpeModel::PointSourceExponential] {
+        for model in [
+            GmpeModel::AkkarBommer2014,
+            GmpeModel::PointSourceExponential,
+        ] {
             let intensity = calculate_ground_motion(&source, &site, 0.0, model);
 
             assert!(intensity.pga_g.is_finite(), "PGA must be finite");
-            assert!(intensity.pga_g > 0.0 && intensity.pga_g <= 5.0, "PGA in range");
+            assert!(
+                intensity.pga_g > 0.0 && intensity.pga_g <= 5.0,
+                "PGA in range"
+            );
             assert!(intensity.pgv_cms.is_finite(), "PGV must be finite");
-            assert!(intensity.pgv_cms > 0.0 && intensity.pgv_cms <= 300.0, "PGV in range");
+            assert!(
+                intensity.pgv_cms > 0.0 && intensity.pgv_cms <= 300.0,
+                "PGV in range"
+            );
             assert!(intensity.sa_03s_g.is_finite(), "SA 0.3s must be finite");
             assert!(intensity.sa_10s_g.is_finite(), "SA 1.0s must be finite");
             assert!(intensity.mmi.is_finite(), "MMI must be finite");
-            assert!((1.0..=10.0).contains(&intensity.mmi), "MMI must be within [1, 10]");
+            assert!(
+                (1.0..=10.0).contains(&intensity.mmi),
+                "MMI must be within [1, 10]"
+            );
         }
     }
 
@@ -376,7 +388,12 @@ mod tests {
         let site_nan = SiteCondition { vs30: f64::NAN };
 
         for site in [site_zero, site_neg, site_nan] {
-            let res = calculate_ground_motion(&source_degenerate, &site, -5.0, GmpeModel::AkkarBommer2014);
+            let res = calculate_ground_motion(
+                &source_degenerate,
+                &site,
+                -5.0,
+                GmpeModel::AkkarBommer2014,
+            );
             assert!(res.pga_g.is_finite());
             assert!(res.pgv_cms.is_finite());
             assert!(res.mmi.is_finite());
@@ -395,8 +412,15 @@ mod tests {
 
     #[test]
     fn test_property_based_parameter_sweep() {
-        let mechanisms = [FaultMechanism::StrikeSlip, FaultMechanism::Normal, FaultMechanism::Reverse];
-        let models = [GmpeModel::AkkarBommer2014, GmpeModel::PointSourceExponential];
+        let mechanisms = [
+            FaultMechanism::StrikeSlip,
+            FaultMechanism::Normal,
+            FaultMechanism::Reverse,
+        ];
+        let models = [
+            GmpeModel::AkkarBommer2014,
+            GmpeModel::PointSourceExponential,
+        ];
 
         let mags = [1.0, 5.0, 7.0, 7.8, 9.5];
         let depths = [0.0, 5.0, 15.0, 50.0];
@@ -412,8 +436,14 @@ mod tests {
                         for &r in &distances {
                             for &model in &models {
                                 let res = calculate_ground_motion(&source, &site, r, model);
-                                assert!(res.pga_g.is_finite(), "PGA must be finite for Mw={mw}, r={r}, vs30={vs30}");
-                                assert!(res.pgv_cms.is_finite(), "PGV must be finite for Mw={mw}, r={r}, vs30={vs30}");
+                                assert!(
+                                    res.pga_g.is_finite(),
+                                    "PGA must be finite for Mw={mw}, r={r}, vs30={vs30}"
+                                );
+                                assert!(
+                                    res.pgv_cms.is_finite(),
+                                    "PGV must be finite for Mw={mw}, r={r}, vs30={vs30}"
+                                );
                                 assert!(res.sa_03s_g.is_finite());
                                 assert!(res.sa_10s_g.is_finite());
                                 assert!(res.mmi.is_finite());
