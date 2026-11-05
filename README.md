@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![CI](https://github.com/zeminrisk/zeminrisk/actions/workflows/ci.yml/badge.svg)](https://github.com/zeminrisk/zeminrisk/actions)
+[![CI](https://github.com/Pastalikek65/zeminrisk/actions/workflows/ci.yml/badge.svg)](https://github.com/Pastalikek65/zeminrisk/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80%2B-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![Python: 3.12+](https://img.shields.io/badge/Python-3.12%2B-green.svg?logo=python)](https://python.org)
@@ -131,7 +131,7 @@ Evaluated on an AMD Ryzen / Windows x86_64 host running single-thread and Rayon 
 
 ### 1. Clone & Build
 ```bash
-git clone https://github.com/zeminrisk/zeminrisk.git
+git clone https://github.com/Pastalikek65/zeminrisk.git
 cd zeminrisk
 
 # Build native Rust workspace
