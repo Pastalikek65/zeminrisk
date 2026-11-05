@@ -43,6 +43,21 @@ def main() -> None:
     )
     sim_parser.add_argument("--output", type=str, help="Output path for GeoJSON result")
 
+    # assess command
+    assess_parser = subparsers.add_parser(
+        "assess", help="Assess building stock damage and fatalities"
+    )
+    assess_parser.add_argument("--pga", type=float, default=0.65, help="PGA in g (default: 0.65)")
+    assess_parser.add_argument(
+        "--count", type=int, default=50, help="Number of sample buildings (default: 50)"
+    )
+    assess_parser.add_argument("--output", type=str, help="Output GeoJSON path")
+
+    # insar command
+    insar_parser = subparsers.add_parser("insar", help="Simulate InSAR Damage Proxy Map (DPM)")
+    insar_parser.add_argument("--mag", type=float, default=7.8, help="Magnitude")
+    insar_parser.add_argument("--cog", type=str, help="Export result as GeoTIFF / COG")
+
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -73,22 +88,7 @@ def main() -> None:
         else:
             print(f"GeoJSON Preview: {len(res.geojson['features'])} features generated.")
 
-    # assess command
-    assess_parser = subparsers.add_parser(
-        "assess", help="Assess building stock damage and fatalities"
-    )
-    assess_parser.add_argument("--pga", type=float, default=0.65, help="PGA in g (default: 0.65)")
-    assess_parser.add_argument(
-        "--count", type=int, default=50, help="Number of sample buildings (default: 50)"
-    )
-    assess_parser.add_argument("--output", type=str, help="Output GeoJSON path")
-
-    # insar command
-    insar_parser = subparsers.add_parser("insar", help="Simulate InSAR Damage Proxy Map (DPM)")
-    insar_parser.add_argument("--mag", type=float, default=7.8, help="Magnitude")
-    insar_parser.add_argument("--cog", type=str, help="Export result as GeoTIFF / COG")
-
-    if args.command == "assess":
+    elif args.command == "assess":
         from zemin.damage import assess_building_stock_damage, generate_sample_antakya_buildings
 
         blds = generate_sample_antakya_buildings(count=args.count)
