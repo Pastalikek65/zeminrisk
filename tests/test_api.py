@@ -152,3 +152,16 @@ def test_ogc_strong_motion_stations_items_endpoint() -> None:
     assert first["geometry"]["type"] == "Point"
     assert "pga_recorded_g" in first["properties"]
 
+
+def test_liquefaction_endpoint() -> None:
+    res = client.get("/collections/liquefaction-zones/items?pga_g=1.1&magnitude=7.8")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) > 0
+    first = data["features"][0]
+    assert first["geometry"]["type"] == "Polygon"
+    assert "lpi" in first["properties"]
+    assert "hazard_class" in first["properties"]
+
+

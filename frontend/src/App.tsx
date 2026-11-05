@@ -82,6 +82,7 @@ export const App: React.FC = () => {
     isochrones: true,
     faults: true,
     stations: true,
+    liquefaction: true,
   });
 
   // Keep a reference to current GeoJSON for export
@@ -107,6 +108,7 @@ export const App: React.FC = () => {
       isochrones: enable,
       faults: enable,
       stations: enable,
+      liquefaction: enable,
     };
     setLayersVisibility(updated);
     applyLayerVisibility(updated);
@@ -133,6 +135,7 @@ export const App: React.FC = () => {
     setVis('faults-glow', vis.faults);
     setVis('stations-circles', vis.stations);
     setVis('stations-pulse', vis.stations);
+    setVis('liquefaction-fill', vis.liquefaction);
   };
 
   // Populate data into MapLibre
@@ -144,6 +147,7 @@ export const App: React.FC = () => {
       isochrones: GeoJSON.FeatureCollection;
       faultLines: GeoJSON.FeatureCollection;
       stations: GeoJSON.FeatureCollection;
+      liquefaction: GeoJSON.FeatureCollection;
     }) => {
       const map = mapRef.current;
       if (!map) return;
@@ -161,6 +165,7 @@ export const App: React.FC = () => {
       setSourceData('isochrones-source', data.isochrones);
       setSourceData('faults-source', data.faultLines);
       setSourceData('stations-source', data.stations);
+      setSourceData('liquefaction-source', data.liquefaction);
 
       currentDataRef.current = {
         shakeMap: data.shakeMap,
@@ -185,6 +190,7 @@ export const App: React.FC = () => {
           isochrones: result.isochrones,
           faultLines: result.faultLines,
           stations: result.stations,
+          liquefaction: result.liquefaction,
         });
       } catch (err) {
         console.error('Error running scenario:', err);
@@ -587,6 +593,75 @@ export const App: React.FC = () => {
           <div class="popup-row">
             <span>Soil Vs30:</span>
             <span class="popup-val font-mono">${props.vs30_ms} m/s</span>
+          </div>
+        `;
+
+        if (popupRef.current) popupRef.current.remove();
+        popupRef.current = new Popup({ offset: 10 })
+          .setLngLat(coords)
+          .setHTML(content)
+          .addTo(map);
+      });
+
+      // 7. Soil Liquefaction Susceptibility (Asi River Basin Alluvium)
+      map.addSource('liquefaction-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'liquefaction-fill',
+        type: 'fill',
+        source: 'liquefaction-source',
+        paint: {
+          'fill-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'lpi'],
+            2.0,
+            'rgba(20, 184, 166, 0.22)',
+            8.0,
+            'rgba(245, 158, 11, 0.40)',
+            15.0,
+            'rgba(239, 68, 68, 0.65)',
+          ],
+          'fill-outline-color': 'rgba(20, 184, 166, 0.45)',
+        },
+      });
+
+      // Click on Liquefaction Zone
+      map.on('click', 'liquefaction-fill', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const props = e.features[0].properties as any;
+        const coords = e.lngLat;
+
+        const badgeClass =
+          props.hazard_class === 'Very High'
+            ? 'badge-catastrophic'
+            : props.hazard_class === 'High'
+            ? 'badge-severe'
+            : 'badge-warning';
+
+        const content = `
+          <div class="popup-bld-header">
+            <span class="popup-bld-id text-teal-400">Soil Liquefaction</span>
+            <span class="hazard-badge ${badgeClass}">${props.hazard_class}</span>
+          </div>
+          <div class="popup-row">
+            <span>Zone:</span>
+            <span class="popup-val text-gray-300">${props.zone || 'Floodplain'}</span>
+          </div>
+          <div class="popup-row">
+            <span>Liquefaction Index (LPI):</span>
+            <span class="popup-val font-mono text-rose-400 font-bold">${props.lpi}</span>
+          </div>
+          <div class="popup-row">
+            <span>Est. Lateral Spread:</span>
+            <span class="popup-val font-mono text-amber-300 font-bold">${props.lateral_spread_m || 0} m</span>
+          </div>
+          <div class="popup-row">
+            <span>Groundwater Depth:</span>
+            <span class="popup-val font-mono">${props.gw_depth_m || '~1.5'} m</span>
           </div>
         `;
 

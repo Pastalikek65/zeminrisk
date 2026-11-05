@@ -708,6 +708,71 @@ export async function getStationsData(): Promise<GeoJSON.FeatureCollection> {
   };
 }
 
+export async function getLiquefactionData(pgaG: number = 1.05): Promise<GeoJSON.FeatureCollection> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/collections/liquefaction-zones/items?pga_g=${pgaG}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.features && data.features.length > 0) {
+        return data;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  // Fallback synthetic Asi river floodplain liquefaction polygons
+  const features: GeoJSON.Feature[] = [];
+  const minLon = 36.145;
+  const maxLon = 36.175;
+  const minLat = 36.185;
+  const maxLat = 36.225;
+  const cols = 8;
+  const rows = 10;
+  const dLon = (maxLon - minLon) / cols;
+  const dLat = (maxLat - minLat) / rows;
+
+  for (let r = 0; r < rows; r++) {
+    const lat0 = maxLat - (r + 1) * dLat;
+    const lat1 = maxLat - r * dLat;
+    for (let c = 0; c < cols; c++) {
+      const lon0 = minLon + c * dLon;
+      const lon1 = minLon + (c + 1) * dLon;
+      const cLon = (lon0 + lon1) / 2;
+      const distRiver = Math.abs(cLon - 36.160) * 111.0;
+      if (distRiver < 1.2) {
+        const lpi = parseFloat((Math.max(2.0, (1.2 - distRiver) * 18 * (pgaG / 0.8))).toFixed(1));
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [parseFloat(lon0.toFixed(5)), parseFloat(lat0.toFixed(5))],
+                [parseFloat(lon1.toFixed(5)), parseFloat(lat0.toFixed(5))],
+                [parseFloat(lon1.toFixed(5)), parseFloat(lat1.toFixed(5))],
+                [parseFloat(lon0.toFixed(5)), parseFloat(lat1.toFixed(5))],
+                [parseFloat(lon0.toFixed(5)), parseFloat(lat0.toFixed(5))],
+              ],
+            ],
+          },
+          properties: {
+            lpi,
+            hazard_class: lpi > 15 ? 'Very High' : lpi > 5 ? 'High' : 'Low',
+            lateral_spread_m: lpi > 5 ? parseFloat((0.18 * Math.pow(lpi, 0.85)).toFixed(2)) : 0,
+            zone: 'Asi River Floodplain Alluvium',
+          },
+        });
+      }
+    }
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
 // -------------------------------------------------------------
 // Combined Scenario Hazard Evaluation
 // -------------------------------------------------------------
@@ -719,6 +784,7 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
   isochrones: GeoJSON.FeatureCollection;
   faultLines: GeoJSON.FeatureCollection;
   stations: GeoJSON.FeatureCollection;
+  liquefaction: GeoJSON.FeatureCollection;
   metrics: HazardMetrics;
   isLiveApi: boolean;
 }> {
@@ -767,6 +833,9 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
   const faultLines = await getActiveFaultsData();
   const stations = await getStationsData();
 
+  // 6. Soil Liquefaction
+  const liquefaction = await getLiquefactionData(localPga);
+
   const collapsedPercent = (buildingRes.collapsed / buildingRes.total) * 100;
 
   const metrics: HazardMetrics = {
@@ -787,6 +856,7 @@ export async function loadScenarioData(scenario: EarthquakeScenario, customPga?:
     isochrones,
     faultLines,
     stations,
+    liquefaction,
     metrics,
     isLiveApi: isLive,
   };

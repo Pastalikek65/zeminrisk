@@ -30,6 +30,7 @@ export interface LayerVisibility {
   isochrones: boolean;
   faults: boolean;
   stations: boolean;
+  liquefaction: boolean;
 }
 
 export interface CustomSimulationParams {

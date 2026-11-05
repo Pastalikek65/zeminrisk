@@ -142,6 +142,26 @@ def get_ogc_collections_metadata(base_url: str) -> dict[str, Any]:
                     }
                 ],
             },
+            {
+                "id": "liquefaction-zones",
+                "title": "Asi Basin Soil Liquefaction Zones",
+                "description": (
+                    "Soil Liquefaction Potential Index (LPI) and lateral spreading "
+                    "hazard across the Asi River Holocene alluvial floodplain."
+                ),
+                "extent": {
+                    "spatial": {"bbox": [[36.14, 36.18, 36.18, 36.23]]},
+                    "temporal": {"interval": [["2023-02-06T00:00:00Z", None]]},
+                },
+                "itemType": "feature",
+                "links": [
+                    {
+                        "rel": "items",
+                        "type": "application/geo+json",
+                        "href": f"{base_url}/collections/liquefaction-zones/items",
+                    }
+                ],
+            },
         ],
     }
 

@@ -463,3 +463,21 @@ async def get_active_faults_items(
 async def get_strong_motion_stations() -> dict[str, Any]:
     """Return AFAD Strong-Motion Seismograph stations as OGC GeoJSON FeatureCollection."""
     return stations_to_geojson(AFAD_2023_PAZARCIK_STATIONS)
+
+
+class LiquefactionSimRequest(BaseModel):
+    pga_g: float = Field(default=1.05, ge=0.05, le=3.0)
+    magnitude: float = Field(default=7.8, ge=4.0, le=9.5)
+
+
+@app.post("/api/v1/liquefaction/simulate")
+@app.get("/collections/liquefaction-zones/items")
+@app.get("/ogc/collections/liquefaction-zones/items")
+async def get_liquefaction_zones(
+    pga_g: float = Query(default=1.05, ge=0.05, le=3.0),
+    magnitude: float = Query(default=7.8, ge=4.0, le=9.5),
+) -> dict[str, Any]:
+    """Return Soil Liquefaction Susceptibility and LPI as OGC GeoJSON FeatureCollection."""
+    from zemin.liquefaction import generate_asi_basin_liquefaction_geojson
+
+    return generate_asi_basin_liquefaction_geojson(pga_g=pga_g, magnitude=magnitude)

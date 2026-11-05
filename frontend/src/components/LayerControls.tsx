@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayerVisibility } from '../types';
-import { Layers, Eye, EyeOff, Boxes, Activity, Satellite, Route, Zap, Radio } from 'lucide-react';
+import { Layers, Eye, EyeOff, Boxes, Activity, Satellite, Route, Zap, Radio, Droplets } from 'lucide-react';
 
 interface LayerControlsProps {
   visibility: LayerVisibility;
@@ -163,6 +163,29 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
           </div>
           <button className="layer-visibility-toggle">
             {visibility.stations ? (
+              <Eye size={16} className="text-cyan-400" />
+            ) : (
+              <EyeOff size={16} className="text-gray-500" />
+            )}
+          </button>
+        </div>
+
+        {/* Layer 7: Soil Liquefaction Susceptibility */}
+        <div
+          className={`layer-item ${visibility.liquefaction ? 'layer-active' : 'layer-inactive'}`}
+          onClick={() => onToggle('liquefaction')}
+        >
+          <div className="layer-left">
+            <div className="layer-icon-badge bg-teal-500/10 text-teal-400">
+              <Droplets size={15} />
+            </div>
+            <div className="layer-info">
+              <div className="layer-name">Soil Liquefaction (LPI)</div>
+              <div className="layer-meta-desc">Asi River Alluvial Floodplain & Lateral Spread</div>
+            </div>
+          </div>
+          <button className="layer-visibility-toggle">
+            {visibility.liquefaction ? (
               <Eye size={16} className="text-cyan-400" />
             ) : (
               <EyeOff size={16} className="text-gray-500" />

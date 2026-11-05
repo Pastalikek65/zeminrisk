@@ -131,6 +131,27 @@ export const Legend: React.FC<LegendProps> = ({ visibility }) => {
               </div>
             </div>
           )}
+
+          {/* Liquefaction Legend */}
+          {visibility.liquefaction && (
+            <div className="legend-section">
+              <div className="legend-section-title">Soil Liquefaction (LPI)</div>
+              <div className="legend-items">
+                <div className="legend-item">
+                  <span className="legend-swatch" style={{ background: '#ef4444', opacity: 0.65 }}></span>
+                  <span className="legend-text">Very High (LPI &gt; 15, Spread &gt; 1m)</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-swatch" style={{ background: '#f59e0b', opacity: 0.5 }}></span>
+                  <span className="legend-text">High Susceptibility (5 &lt; LPI &le; 15)</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-swatch" style={{ background: '#14b8a6', opacity: 0.35 }}></span>
+                  <span className="legend-text">Low / Non-Liquefiable (LPI &le; 5)</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

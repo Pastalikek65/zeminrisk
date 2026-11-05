@@ -131,6 +131,14 @@ S_{DS} & T_A \le T \le T_B \\
 \end{cases}$$
 where corner periods $T_A = 0.2 S_{D1} / S_{DS}$ and $T_B = S_{D1} / S_{DS}$ define the constant spectral acceleration plateau.
 
+### 7. Soil Liquefaction Potential Index (LPI) & Lateral Spreading
+In saturated Holocene alluvial floodplains (e.g. Asi River basin, Antakya), destructive ground failure is compounded by soil liquefaction. ZeminRisk computes the **Youd et al. (2001)** Cyclic Stress Ratio ($CSR$) alongside shear-wave velocity resistance ($CRR_{Vs}$, Andrus & Stokoe 2000):
+$$CSR = 0.65 \left(\frac{PGA}{g}\right) \left(\frac{\sigma_v}{\sigma_v'}\right) r_d \frac{1}{MSF}$$
+$$FS_L = \frac{CRR}{CSR}$$
+Layered risk is integrated through the **Iwasaki et al. (1982)** Liquefaction Potential Index:
+$$LPI = \int_0^{20\text{ m}} (1 - FS_L) \cdot (10 - 0.5z) \, dz \quad (\text{for } FS_L \le 1.0)$$
+where $LPI > 15$ delineates very high susceptibility with expected lateral spreading displacement ($\Delta L \sim 0.18 LPI^{0.85}\text{ m}$) and foundation failure.
+
 ---
 
 ## 📊 Benchmarks
@@ -230,6 +238,7 @@ npm run build
 - **Emergency Reachability Isochrones:** 5-minute, 10-minute, and 15-minute emergency response polygons computed under post-earthquake debris blockage.
 - **Historical Scenario Replay:** One-click replay of the 6 Feb 2023 Pazarcık ($M_w 7.8$) and Elbistan ($M_w 7.6$) earthquakes, plus a custom seismic parameter simulation engine.
 - **One-Click GeoJSON Export:** Direct download of calibrated ShakeMap FeatureCollections for instant import into QGIS, ArcGIS, or GeoPandas.
+- **Soil Liquefaction Susceptibility (LPI):** 2D spatial grid along the Asi River floodplain displaying Iwasaki LPI, factor of safety, and empirical lateral spreading displacement ($m$).
 - **OGC API Features (ISO 19168-1):** Standard-compliant `/collections/active-faults/items` and `/collections/strong-motion-stations/items` with bounding box filtering.
 - **Graceful Fallback:** Automatically communicates with the FastAPI service (`localhost:8000`) and falls back to a deterministic high-precision calibrated twin engine when offline.
 
@@ -255,4 +264,6 @@ Seismic calibration data and active fault structures referenced from:
 - Disaster and Emergency Management Authority (AFAD) Strong Ground Motion Network
 - Akkar, S., Sandıkkaya, M. A., & Bommer, J. J. (2014). *Empirical ground-motion models for Europe and the Middle East.* Bull Earthquake Eng, 12(1), 359-387.
 - Worden, C. B., Gerstenberger, M. C., Rhoades, D. A., & Wald, D. J. (2012). *Probabilistic conversion of ground motion to Modified Mercalli Intensity.* Computer & Geosciences, 44, 46-54.
+- Youd, T. L., et al. (2001). *Liquefaction resistance of soils: Summary report from the 1996 NCEER and 1998 NCEER/NSF workshops on evaluation of liquefaction resistance of soils.* J. Geotech. Geoenviron. Eng., 127(10), 817-833.
+- Iwasaki, T., et al. (1982). *Microzonation for soil liquefaction potential using simplified methods.* Proc. 3rd Int. Conf. on Microzonation, Seattle, 1319-1330.
 - Grünthal, G. (1998). *European Macroseismic Scale 1998 (EMS-98).* Cahiers du Centre Européen de Géodynamique et de Séismologie, 15.
